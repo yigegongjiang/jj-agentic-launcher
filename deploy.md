@@ -7,7 +7,7 @@ AI 改完代码主动执行. push `v*` tag 触发 Actions 构建发布.
 ```bash
 bun run typecheck
 bun run build
-./dist/jjlauncher-darwin-arm64 version
+./dist/jj-prompt-launcher-darwin-arm64 version
 ```
 
 ## 2. 写版本

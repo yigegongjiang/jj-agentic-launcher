@@ -45,7 +45,7 @@ export function parseInvocation(
   const passthroughArgs = passthrough.length > 0 ? passthrough : undefined;
 
   if (args.length > 2) {
-    throw new UsageError("Too many arguments. Usage: jjlauncher [scene] [prompt]");
+    throw new UsageError("Too many arguments. Usage: jj-prompt-launcher [scene] [prompt]");
   }
 
   // 0 args → REPL with default scene

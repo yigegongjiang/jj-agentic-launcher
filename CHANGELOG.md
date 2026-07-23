@@ -2,6 +2,13 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [0.12.0] - 2026-07-23
+
+### Changed
+
+- **Breaking**: 全项目改名 `jjlauncher` / `cli-prompt-launcher` → `jj-prompt-launcher` (命令名 + `package.json#name` + binary 产物名 + repo 名统一)。
+- **Breaking**: config 目录 `~/.config/cli-prompt-launcher/` → `~/.config/jj-prompt-launcher/`, 旧目录需手动 `mv` 迁移。
+
 ## [0.11.1] - 2026-06-09
 
 ### Fixed
@@ -140,16 +147,17 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
-[0.11.1]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.7.2...v0.8.0
-[0.7.2]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.7.1...v0.7.2
-[0.7.1]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.7.0...v0.7.1
-[0.7.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/yigegongjiang/cli-prompt-launcher/compare/v0.1.0...v0.3.0
-[0.1.0]: https://github.com/yigegongjiang/cli-prompt-launcher/releases/tag/v0.1.0
+[0.12.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.1.0...v0.3.0
+[0.1.0]: https://github.com/yigegongjiang/jj-prompt-launcher/releases/tag/v0.1.0

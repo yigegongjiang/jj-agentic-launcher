@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 
 export function getConfigDir(): string {
   const home = process.env.HOME || homedir();
-  return join(home, ".config", "cli-prompt-launcher");
+  return join(home, ".config", "jj-prompt-launcher");
 }
 
 // --- Types ---

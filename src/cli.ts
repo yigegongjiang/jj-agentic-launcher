@@ -218,7 +218,7 @@ function parseFlags(args: string[]): { args: string[]; wantPrint: boolean; loop:
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     // Everything after a literal `--` is forwarded verbatim to the child engine;
-    // it bypasses jjlauncher's own flag parsing entirely.
+    // it bypasses jj-prompt-launcher's own flag parsing entirely.
     if (arg === "--") {
       passthrough.push(...args.slice(i + 1));
       break;
@@ -305,7 +305,7 @@ function looksLikeScriptPath(value: string | undefined): boolean {
 // configured count (fixed) terminates the loop. status="end" stops auto/refine early.
 
 // Sequential split: prompt contains `<<>>` → split into N independent single-shots,
-// each run as if a separate `jjlauncher` invocation. Same stability rule: a step
+// each run as if a separate `jj-prompt-launcher` invocation. Same stability rule: a step
 // failure warns and the next step still runs; returns the last step's exit code.
 async function runSerialLoop(invocation: Invocation, prompts: string[]): Promise<number> {
   let lastExit = 0;

@@ -1,11 +1,11 @@
 {
-  "name": "jjlauncher",
-  "version": "0.11.1",
+  "name": "jj-prompt-launcher",
+  "version": "0.12.0",
   "description": "Launch Claude Code or Codex with shared scene prompts",
   "type": "module",
   "private": true,
   "module": "src/cli.ts",
-  "repository": "yigegongjiang/cli-prompt-launcher",
+  "repository": "yigegongjiang/jj-prompt-launcher",
   "scripts": {
     "start": "bun run src/cli.ts",
     "build": "bun run build.ts",

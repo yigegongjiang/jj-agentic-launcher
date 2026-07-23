@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — download the latest jjlauncher binary from GitHub Releases.
+# install.sh — download the latest jj-prompt-launcher binary from GitHub Releases.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | bash
@@ -8,11 +8,11 @@
 
 set -euo pipefail
 
-REPO="${REPO:-yigegongjiang/cli-prompt-launcher}"
+REPO="${REPO:-yigegongjiang/jj-prompt-launcher}"
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-# package.json#name == "jjlauncher" (intentional deviation from repo name; see AGENTS.md).
-BIN_NAME="${BIN_NAME:-jjlauncher}"
+# package.json#name == repo name == binary name == "jj-prompt-launcher".
+BIN_NAME="${BIN_NAME:-jj-prompt-launcher}"
 
 err()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { printf '%s\n' "$*"; }

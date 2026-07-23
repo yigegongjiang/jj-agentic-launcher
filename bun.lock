@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "cli-prompt-launcher",
+      "name": "jj-prompt-launcher",
       "devDependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.76",
         "@types/bun": "latest",

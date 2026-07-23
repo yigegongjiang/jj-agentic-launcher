@@ -1,6 +1,6 @@
-# cli-prompt-launcher
+# jj-prompt-launcher
 
-`jjlauncher` 启动器: 把共享 scene prompt 注入 Claude Code / Codex. Bun 单文件可执行 (仅 macOS). 改完代码 → 在 `CHANGELOG.md` 顶部新增版本段 → 按 [deploy.md](./deploy.md) 发布.
+`jj-prompt-launcher` 启动器: 把共享 scene prompt 注入 Claude Code / Codex. Bun 单文件可执行 (仅 macOS). 改完代码 → 在 `CHANGELOG.md` 顶部新增版本段 → 按 [deploy.md](./deploy.md) 发布.
 
 ## AI-only 工程声明
 
@@ -19,7 +19,7 @@
 
 收到 "改 X / 加 Y / 修 Z" 默认 = 完整 deploy 闭环, **不询问 / 不停顿 / 不只改不发**:
 
-1. 改代码/配置 → `bun run typecheck` + `bun run build` + `./dist/jjlauncher-darwin-arm64 version` 本地验证.
+1. 改代码/配置 → `bun run typecheck` + `bun run build` + `./dist/jj-prompt-launcher-darwin-arm64 version` 本地验证.
 2. lockstep bump: `package.json#version` + `CHANGELOG.md` 顶部新增 `## [X.Y.Z] - YYYY-MM-DD` 段 + 底部对比链接.
 3. `git commit -m "release: vX.Y.Z"` → `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin <branch> vX.Y.Z`.
 4. 等 GitHub Actions `Release` workflow success; 失败时读 log 修代码或按 [`deploy.md`](./deploy.md) `amend` 流程修上版, 不卡在 "要不要 deploy / workflow fail 了".
@@ -28,11 +28,10 @@
 
 **豁免发布闭环**: 用户明示 "只改不发 / 先看看 / 本地试"; 或改动仅限文档 (`*.md`)、`scenes/*.md`、注释、`.gitignore`、jjask 记录.
 
-## 命名约定 (例外说明)
+## 命名约定
 
-- `package.json#name` = `jjlauncher` (不是 repo 名 `cli-prompt-launcher`). binary 名也是 `jjlauncher`.
-- 这是对 cli-template 通用约定 (`name == repo == bin`) 的**有意例外** — `jjlauncher` 是这个工程存在的核心 UX, 不能为了对齐约定而牺牲短命令.
-- 因此 `install.sh` 中 `BIN_NAME` 硬编码为 `jjlauncher`; `build.ts` 的产物名也是 `jjlauncher-darwin-*`. 任何对二进制名的改动都要同步这三处.
+- `package.json#name` == repo 名 == binary 名 == `jj-prompt-launcher`, 三者一致.
+- binary 产物名由 `package.json#name` 派生: `build.ts` 产出 `jj-prompt-launcher-darwin-*`, `install.sh` 的 `BIN_NAME` 与之对齐. 改二进制名须同步这三处.
 
 ## 边界
 
@@ -43,9 +42,9 @@
 
 ## 运行时配置
 
-首次运行自动初始化 `~/.config/cli-prompt-launcher/`:
+首次运行自动初始化 `~/.config/jj-prompt-launcher/`:
 
 - `config.json` — 引擎参数 + scene 别名 (`DEFAULT_CONFIG` 见 `src/config.ts`)
 - `scenes/*.md` — 内置 scene 文件 (`address` / `ai-expert` / `code-expert` / `default` / `it-expert`), 编译时通过 `import ... with { type: "text" }` 嵌入二进制, 首次运行落盘.
 
-用户后续可直接编辑 `~/.config/cli-prompt-launcher/scenes/` 增删 scene, 工程内置 scene 仅作 seed.
+用户后续可直接编辑 `~/.config/jj-prompt-launcher/scenes/` 增删 scene, 工程内置 scene 仅作 seed.

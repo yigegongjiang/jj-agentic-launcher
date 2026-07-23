@@ -5,7 +5,7 @@
 // 4) Secondary cross-check only: https://raw.githubusercontent.com/openai/codex/main/sdk/typescript/src/events.ts
 //
 // Important boundary:
-// - `jjlauncher` keeps using the local `codex exec --json`.
+// - `jj-prompt-launcher` keeps using the local `codex exec --json`.
 // - OpenAI's TS SDK does not currently expose a parse-only API for an already-running external
 //   `codex --json` stream, so this file intentionally parses protocol-shaped JSON objects itself.
 // - When the Rust protocol and TS SDK types diverge, treat the Rust protocol sources above as primary.
