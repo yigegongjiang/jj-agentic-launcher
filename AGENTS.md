@@ -1,50 +1,32 @@
-# jj-prompt-launcher
+# AGENTS
 
-`jj-prompt-launcher` 启动器: 把共享 scene prompt 注入 Claude Code / Codex. Bun 单文件可执行 (仅 macOS). 改完代码 → 在 `CHANGELOG.md` 顶部新增版本段 → 按 [deploy.md](./deploy.md) 发布.
+> 当前 project 是 AI Only 工程，人类输入的所有需求，都需要 AI(Claude Code、Codex...) 自主完成后续的所有工作。
+> 默认 MUST(必须强制遵守); 仅例外用 SHOULD/MAY/MUST NOT/NEVER 标注。
 
-## AI-only 工程声明
+## 指令路由（MUST）
 
-本工程为 **AI-only 项目**, 人类不参与开发流程:
+- 【MUST】代码 / 架构 / 命令 / 结构 → [README.md](./README.md)
+- 【MUST】调试 / 版本 / changelog / git commit+push / 预部署+发布 → [workflow.md](./workflow.md)
 
-1. 代码编写、测试、构建、部署、发布 — 全部由 Claude Code 或 Codex 执行.
-2. 设计决策 (架构/技术选型/目录结构/命名/依赖等) 以 Claude Code 或 Codex 的判断为准, **不需要参考人类开发者的惯例/最佳实践**, 除非该惯例本身就是 AI 自己的最优解.
-3. 非必要不反问用户, 直接决策并执行 (deploy / 技术抉择 / 文档同步 / 版本号 / changelog 等).
-4. 所有文档 (README / CHANGELOG / deploy.md / AGENTS.md / 注释等) 必须**简洁精炼、重点突出、零冗余** — 能一行讲清不写两行, 能用列表不用段落, 不堆砌背景/客套/重复信息. 宁可信息密度过载, 不要废话填充.
+## 工作模式 (MUST、AI-only)
 
-简言之: 用户角色 = 触发者 + 验收者, 不是协作开发者. 不要把人类拉进设计回路.
+- 【MUST】运行稳定 + 长久可持续 = 第一优先级；MUST NOT 引入随时间劣化的隐患（资源泄漏 / 硬编码时效值 / 未释放连接 / ...）
+- 【MUST】代码 / 测试 / 构建 / 部署 / 发布 全部由 AI(Claude Code、Codex、...) 执行，人类输入需求或咨询，AI 自主完成后续工作
+- 【MUST】workflow.md 中的所有操作（git push / deploy / publish 等）已预授权，AI 直接执行，MUST NOT 等待人类确认
+- 【MUST】决策 (架构 / 选型 / 命名 / 依赖 / ...) 需 AI 自行抉择, MUST NOT 拉人类进设计回路，MUST NOT 反问人类
+- 【MUST】决策前通过各种方式（本工程检索、在线检索、其他途径）获取项目/需求事实，根据事实进行最优决策
 
-`package.json#version` 经 `build.ts` 注入二进制, 必须与 tag 一致 (Actions 会做一致性校验, 不一致直接 fail).
+## 工作流程
 
-## 默认 Release 闭环
+1. **分流**：判断人类输入是否涉及行为或交付物变更（feature / fix / config / 行为逻辑变更 = 需求变更）；纯咨询 / 纯文案·注释·md 内容调整（不改变运行行为或交付物）→ 直接响应或编辑，跳过后续步骤
+2. AI 抉择并执行后续工作；开发过程中按需走 [workflow.md#调试](./workflow.md) 验证变更
+3. 执行 [workflow.md#发布](./workflow.md) 完整流程；未发布上线 = 需求未完成，MUST NOT 在发布完成前停止
 
-收到 "改 X / 加 Y / 修 Z" 默认 = 完整 deploy 闭环, **不询问 / 不停顿 / 不只改不发**:
+## 文档编写规范
 
-1. 改代码/配置 → `bun run typecheck` + `bun run build` + `./dist/jj-prompt-launcher-darwin-arm64 version` 本地验证.
-2. lockstep bump: `package.json#version` + `CHANGELOG.md` 顶部新增 `## [X.Y.Z] - YYYY-MM-DD` 段 + 底部对比链接.
-3. `git commit -m "release: vX.Y.Z"` → `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin <branch> vX.Y.Z`.
-4. 等 GitHub Actions `Release` workflow success; 失败时读 log 修代码或按 [`deploy.md`](./deploy.md) `amend` 流程修上版, 不卡在 "要不要 deploy / workflow fail 了".
-
-完整命令、版本号规则与 amend 修上版 bug 流程见 [`deploy.md`](./deploy.md).
-
-**豁免发布闭环**: 用户明示 "只改不发 / 先看看 / 本地试"; 或改动仅限文档 (`*.md`)、`scenes/*.md`、注释、`.gitignore`、jjask 记录.
-
-## 命名约定
-
-- `package.json#name` == repo 名 == binary 名 == `jj-prompt-launcher`, 三者一致.
-- binary 产物名由 `package.json#name` 派生: `build.ts` 产出 `jj-prompt-launcher-darwin-*`, `install.sh` 的 `BIN_NAME` 与之对齐. 改二进制名须同步这三处.
-
-## 边界
-
-- 仅 macOS (x64 + arm64). 其它平台 `install.sh` 与 `update` 子命令都会主动拒绝.
-- `update` / `uninstall` 子命令只在编译后的二进制可用. `bun run start update` 会被守卫拦截 (避免覆盖系统 bun).
-- 自更新与 `install.sh` 默认拉 GitHub Release 的 `latest`; checksum 校验是 best-effort (`checksums.txt` 缺失则跳过).
-- 不提交 `dist/`、`node_modules/`、`*.bun-build` (已在 `.gitignore`).
-
-## 运行时配置
-
-首次运行自动初始化 `~/.config/jj-prompt-launcher/`:
-
-- `config.json` — 引擎参数 + scene 别名 (`DEFAULT_CONFIG` 见 `src/config.ts`)
-- `scenes/*.md` — 内置 scene 文件 (`address` / `ai-expert` / `code-expert` / `default` / `it-expert`), 编译时通过 `import ... with { type: "text" }` 嵌入二进制, 首次运行落盘.
-
-用户后续可直接编辑 `~/.config/jj-prompt-launcher/scenes/` 增删 scene, 工程内置 scene 仅作 seed.
+- 全部文档只供 AI 查看，MUST 简洁精炼, 零冗余; MUST NOT 废话填充
+- 能一行不写两行, 能一个单词不写两个单词, 能列表不写段落; 短句; `->` `/` `+` 替连接词
+- 强度词: MUST / MUST NOT / SHOULD / MAY / NEVER
+- 单一信源: 跨文档用 link 引用, MUST NOT 复述事实
+- AGENTS 只写 LLM 约束, MUST NOT 塞工程说明 / 命令 / 安装
+- 本段 = 全局写作标准; 其他 md 的 When Editing 仅补充各自特有约束

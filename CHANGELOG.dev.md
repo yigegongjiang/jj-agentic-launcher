@@ -1,50 +1,53 @@
 ```When Editing
-本文档作用: 面向使用者的发版记录; 只写用户感受得到的变化, MUST NOT 写技术细节 (→ CHANGELOG.dev.md)
+本文档作用: 面向开发者的发版记录; CHANGELOG.md 的超集, 1:1 镜像 + 技术变更子项
 遵循 AGENTS.md 文档编写规范
-- 写: 新功能 / 行为修复 / 体验 / 安全 / 命令迁移
-- MUST NOT 写: 文件路径 / 函数名 / 组件名 / 依赖包名 / 重构细节
-- 单条 ≤ 2 行, 单版本 ≤ 5 条; 段落: Added / Changed / Fixed / Removed / Security
-- 无用户可感知变化 → 占位: `跟随版本同步发布`
+- 每条主项 = CHANGELOG.md 对应条目 (原文), 下方缩进子项承载技术变更
+- 子项 MAY 写路径 / 函数 / 机制; ≤ 1 行
 ```
 
-# Changelog
-
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
+# Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
 ## [0.12.0] - 2026-07-23
 
 ### Changed
 
 - **Breaking**: 全项目改名 `jjlauncher` / `cli-prompt-launcher` → `jj-prompt-launcher` (命令名 + `package.json#name` + binary 产物名 + repo 名统一)。
+  - `package.json#name` / `build.ts` BUILD_NAME / `install.sh` asset 名 / `.github/workflows/release.yml` dist glob 全部同步。
 - **Breaking**: config 目录 `~/.config/cli-prompt-launcher/` → `~/.config/jj-prompt-launcher/`, 旧目录需手动 `mv` 迁移。
+  - `src/config.ts` `getConfigDir()` 硬编码路径改名, 无自动迁移逻辑。
 
 ## [0.11.1] - 2026-06-09
 
 ### Fixed
 
 - `--mcp-config=<path>` 等号连接格式现在正确执行文件存在性检查, 与空格分隔格式行为一致。
+  - `src/run.ts` mcp-config 过滤支持 `--mcp-config=path` 与 `--mcp-config path` 两种拆分形态。
 
 ## [0.11.0] - 2026-05-29
 
 ### Added
 
 - 命令行 `--` 透传: `jj [scene] 'prompt' -- <args>` 把 `--` 之后的 token 原样追加给底层 claude/codex (置于 scene 注入后、prompt 前), REPL 亦支持。
+  - `src/parse.ts` 抽出 `--` 后的 tail args, `src/run.ts` 在 scene args 与 prompt 之间插入。
 
 ## [0.10.0] - 2026-05-29
 
 ### Fixed
 
 - `--mcp-config` 指向的文件不存在 (如项目无 `.mcp.json`) 时不再让 claude 启动失败 — 透传前过滤掉缺失的文件路径, inline JSON 与存在的文件保留, `--strict-mcp-config` 保留。
+  - `src/run.ts` 逐个 stat 检查 mcp-config 路径, 缺失即 drop; inline JSON 通过 JSON.parse 判定。
 
 ## [0.9.0] - 2026-05-19
 
 ### Changed
 
 - **Breaking**: 非交互单跑默认输出从 raw `print` 翻转为 `stream-JSON` 渲染。
+  - `src/cli.ts` mode 推导规则: 有 prompt + 无 `-p` → stream (原为 print)。
 
 ### Added
 
 - `-p` / `--print` / `print`: 显式切回 raw print 透传模式。
+  - `src/parse.ts` 新增 `-p` flag, `src/run.ts` 分派 print 分支。
 
 ### Removed
 
@@ -55,6 +58,7 @@
 ### Added
 
 - prompt 顺序分段: 嵌入 `<<>>` 把 prompt 拆成 N 段独立 single-shot 串行执行, 每段全新 child。与 `--loop N>1` / `auto` / `refine` 互斥, stderr 标 `==> step i/N`。
+  - `src/parse.ts` 按 `<<>>` split, `src/run.ts` 顺序循环 spawn, 每段独立 child.
 - 任一段非 0 退出或异常仅 `[warn]` 并继续下一段, 返回最后一段 exit code。
 
 ## [0.7.2] - 2026-05-19
@@ -63,6 +67,7 @@
 
 - `--loop N` 第 1 轮 child 非 0 退出会 break 丢失后续轮次; 现在 warn-continue, 必跑满 N 次。
 - `--loop auto` / `refine` 子进程 exit≠0 立即中断; 现在同样 warn-continue, 由 `--max-iter` / `status=end` 决定终止。
+  - `src/run.ts` `runFixedLoop` / `runAgentLoop` catch spawn 异常 + 非 0 exit 转 warn.
 
 ### Changed
 
@@ -77,12 +82,14 @@
 ### Changed
 
 - `--loop refine` handoff schema 收敛到 `{"status": "end" | "continue"}` 一字段, 移除 `iteration` / `summary`; `parseHandoff` 向后兼容。
+  - `src/handoff.ts` refine schema minimal, `parseHandoff` 只取 status.
 
 ## [0.7.0] - 2026-05-17
 
 ### Added
 
 - `--loop refine` 打磨式自动循环: 每轮全新 child, 只把原始 prompt 喂下一轮, 跨轮唯一信号是 agent 自决的 end/continue。复用 `--max-iter` 与 `/handoff`。
+  - `src/run.ts` `runAgentLoop` 增 refine 分支, prompt 每轮重置为 original.
 - `/handoff` 端点响应新增 `mode` 字段 (`auto` / `refine`)。
 
 ### Changed
@@ -95,7 +102,9 @@
 ### Added
 
 - `--loop auto` 自动循环: 每轮全新 child, agent 末尾输出 `<<JJ_HANDOFF>>...<<JJ_HANDOFF_END>>` JSON baton, 父进程注入下一轮直到 status=end 或达 `--max-iter` (默认 100)。
+  - `src/handoff.ts` sentinel 扫描 + JSON parse, `src/run.ts` `runAgentLoop` 循环 spawn.
 - 本地观察端点: stderr 打印 `http://127.0.0.1:<port>/handoff`, 暴露 iteration/handoff/history 快照, 退出自动关闭。
+  - `Bun.serve({ port: 0 })` OS 分配端口, 进程结束自动关闭.
 - 退出码: end→0; max-iter→0+警告; 子进程非 0→透传; 连续 3 轮解析失败→3。
 
 ### Changed
@@ -107,12 +116,14 @@
 ### Added
 
 - `--loop N`: 同一 single-shot 串行重跑 N 次, 任一非 0 立即中止。仅带 prompt 的非交互场景可用。
+  - `src/run.ts` `runFixedLoop` 顺序 await spawn.
 
 ## [0.4.0] - 2026-05-17
 
 ### Changed
 
 - **Breaking**: prompt 改为位置参数 `jjlauncher [scene] 'prompt'`, 依赖 shell 引号。
+  - `src/parse.ts` 位置参数解析重写, mode 由 argv 形态推导.
 - mode 由参数推导: 无 prompt→REPL; 有 prompt→print; 有 prompt + `-s`→stream。
 - `install.sh` asset 下载改用 `curl --progress-bar`。
 
@@ -127,6 +138,7 @@
 ### Added
 
 - 子命令 `update` / `upgrade`: 从 GitHub Release 拉最新二进制原子替换 (进度条、SHA256 校验、版本对照)。
+  - `src/download.ts` fetch + `Bun.write` + `chmod +x` + `rename` 原子替换.
 - 子命令 `uninstall`: 删除当前二进制。
 - `install.sh`: 一键安装, 支持 `VERSION` / `INSTALL_DIR` / `REPO` 覆写。
 - `.github/workflows/release.yml`: tag 触发自动构建 + 发布。
