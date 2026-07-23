@@ -7,6 +7,18 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.0.0] - 2026-07-23
+
+### Changed
+
+- 运行时从 Bun/TypeScript 迁移到 Rust: 单文件二进制体积 ~50MB → ~0.5MB, 启动更快。命令行 / scene / config / loop / handoff 行为完全不变, `~/.config/jj-prompt-launcher/` 无需迁移。
+  - `src/*.ts` + `build.ts` + `package.json` + `bun.lock` + `tsconfig.json` 全删, 换 `Cargo.toml` + `src/*.rs`; crate 依赖仅 `serde` / `serde_json` (preserve_order) / `sha2`。
+  - scenes 用 `include_str!` 编译期嵌入; VERSION 用 `env!(CARGO_PKG_VERSION)` 注入; observation server 从 `Bun.serve` 换 `std::net::TcpListener` 手写 HTTP/1.1 + detach 线程; ISO8601 时间戳手写 (civil-from-days), 无 date crate。
+  - stream 按 `\n` 字节切行 + 整行 decode; print 累积原始字节到 `parse_handoff` 才 decode — 规避 CJK 跨 chunk 边界。截断 char-safe (`chars().take(n)`)。
+  - `.github/workflows/release.yml` 改 cargo 双 target (arm64 原生 + x86_64 交叉), 产物 rename 为 `jj-prompt-launcher-darwin-{arm64,x64}` (asset 名契约不变); checksums 用 `shasum -a 256`。
+- `update` 子命令下载改用系统 `curl` (与 install.sh 一致), 进度条为 curl 原生样式; macOS 自带 `curl`, 无需额外安装。
+  - `src/update.rs` `curl -fL --progress-bar` 下载 + `curl -fsSL` 取 checksums; sha256 校验用 `sha2` crate; 原子替换 tmp+rename 逻辑不变。
+
 ## [0.12.0] - 2026-07-23
 
 ### Changed
@@ -174,6 +186,7 @@
 [0.10.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.2...v0.8.0
+[1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
 [0.7.2]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.6.0...v0.7.0

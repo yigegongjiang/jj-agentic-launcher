@@ -8,7 +8,7 @@
 
 # jj-prompt-launcher
 
-启动器: 把共享 scene prompt 注入 Claude Code / Codex. Bun 单文件可执行 (仅 macOS). 打 tag → GitHub Actions 自动构建并发布 release; 用户用 `install.sh` 一键安装, 或通过内置 `update` 子命令自更新.
+启动器: 把共享 scene prompt 注入 Claude Code / Codex. Rust 单文件可执行 (仅 macOS). 打 tag → GitHub Actions 自动构建并发布 release; 用户用 `install.sh` 一键安装, 或通过内置 `update` 子命令自更新.
 
 ## 安装
 
@@ -166,15 +166,15 @@ jj-prompt-launcher uninstall   # 删除当前二进制
 
 ## 架构
 
-Bun runtime + TypeScript, `bun build --compile` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发构建 + 生成 `checksums.txt` + 创建 Release. 无第三方运行时依赖.
+Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` (PATH), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2`.
 
 ## 项目结构
 
 ```
-src/          # CLI 主体: cli / config / run / handoff / scene 解析 / 流事件格式化
-scenes/       # 内置 scene prompt (首次运行落盘到 ~/.config/)
+src/          # CLI 主体: main / parse / config / run / handoff / server / scene 解析 / 流事件格式化 / update
+scenes/       # 内置 scene prompt (compile-time include_str! 嵌入, 首次运行落盘到 ~/.config/)
 scripts/      # 辅助脚本
-build.ts      # 编译入口, 通过 --define 注入 BUILD_NAME / BUILD_VERSION / BUILD_REPO
+Cargo.toml    # 包定义, VERSION 经 env!(CARGO_PKG_VERSION) 注入二进制
 ```
 
 子命令: `help` / `-h` / `--help`, `version` / `-v` / `--version`, `update` / `upgrade`, `uninstall`.

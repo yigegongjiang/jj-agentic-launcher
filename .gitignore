@@ -1,12 +1,8 @@
-# Dependencies
-node_modules/
+# Rust build output
+/target/
 
-# Build output
-dist/
-
-# Intermediate runtime copy left by `bun build --compile`
-*.bun-build
-.*.bun-build
+# Release staging
+/dist/
 
 # Logs
 *.log

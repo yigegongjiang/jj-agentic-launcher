@@ -15,39 +15,41 @@ concurrency:
 jobs:
   release:
     name: Build and publish release
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Verify tag matches package.json version
+      - name: Verify tag matches Cargo.toml version
         run: |
-          pkg_version="$(jq -r .version package.json)"
+          pkg_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')"
           tag="${{ github.ref_name }}"
           if [ "v${pkg_version}" != "${tag}" ]; then
-            echo "error: tag ${tag} does not match package.json version v${pkg_version}" >&2
+            echo "error: tag ${tag} does not match Cargo.toml version v${pkg_version}" >&2
             exit 1
           fi
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Typecheck
-        run: bun run typecheck
+      - name: Build (arm64 + x64)
+        run: |
+          cargo build --release --locked --target aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
 
-      - name: Build
-        run: bun run build
+      - name: Assemble artifacts
+        run: |
+          mkdir -p dist
+          cp target/aarch64-apple-darwin/release/jj-prompt-launcher dist/jj-prompt-launcher-darwin-arm64
+          cp target/x86_64-apple-darwin/release/jj-prompt-launcher  dist/jj-prompt-launcher-darwin-x64
 
       - name: Generate SHA256 checksums
         working-directory: dist
         run: |
           shopt -s nullglob
-          files=( "$(jq -r .name ../package.json)"-* )
+          files=( jj-prompt-launcher-* )
           [ ${#files[@]} -gt 0 ] || { echo "no build artifacts found in dist/" >&2; exit 1; }
-          sha256sum "${files[@]}" > checksums.txt
+          shasum -a 256 "${files[@]}" > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub Release
