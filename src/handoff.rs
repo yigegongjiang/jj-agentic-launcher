@@ -15,7 +15,7 @@ pub struct Handoff {
     pub blockers: Vec<String>,
 }
 
-pub struct AutoLoopState {
+pub struct LoopState {
     pub iteration: u32,
     pub max_iter: u32,
     pub handoff: Option<Handoff>,
@@ -35,10 +35,10 @@ pub fn now_millis() -> u128 {
         .unwrap_or(0)
 }
 
-impl AutoLoopState {
+impl LoopState {
     pub fn new(max_iter: u32) -> Self {
         let now = now_millis();
-        AutoLoopState {
+        LoopState {
             iteration: 0,
             max_iter,
             handoff: None,
@@ -112,16 +112,16 @@ fn string_array(value: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// System-prompt suffix for `--loop auto` (relay mode).
-pub fn build_protocol_prompt(max_iter: u32) -> String {
+/// System-prompt suffix for `--loop relay` (baton relay mode).
+pub fn build_relay_protocol_prompt(max_iter: u32) -> String {
     format!(
         r#"
 
 ---
 
-[JJ_LOOP_AUTO 协议 — 强制]
+[JJ_LOOP_RELAY 协议 — 强制]
 
-你处于"接力式"多轮循环 (本工程 --loop auto). 每一轮都是**独立的全新会话**, 不继承任何历史 — 像接力赛交棒, 不是马拉松. 跨轮唯一通道是一份 handoff JSON, 由你在本轮最终回复末尾输出, 父进程会把它注入下一轮的新 agent 作为 "previous_handoff" baton.
+你处于"接力式"多轮循环 (本工程 --loop relay). 每一轮都是**独立的全新会话**, 不继承任何历史 — 像接力赛交棒, 不是马拉松. 跨轮唯一通道是一份 handoff JSON, 由你在本轮最终回复末尾输出, 父进程会把它注入下一轮的新 agent 作为 "previous_handoff" baton.
 
 你必须在最终回复的**最后**单独成段输出, 不要解释这个机制:
 
@@ -179,7 +179,7 @@ handoff 之外的内容你可以正常工作 / 解释 / 用工具, 互不影响.
     )
 }
 
-/// Build the round-N (N >= 2) user prompt for `--loop auto`.
+/// Build the round-N (N >= 2) user prompt for `--loop relay`.
 pub fn build_continue_prompt(original_prompt: &str, previous: &Handoff) -> String {
     let baton = serde_json::to_string_pretty(previous).unwrap_or_else(|_| "{}".to_string());
     format!(
@@ -219,7 +219,7 @@ pub struct Snapshot<'a> {
     pub history: Vec<Handoff>,
 }
 
-pub fn snapshot<'a>(state: &AutoLoopState, mode: &'a str) -> Snapshot<'a> {
+pub fn snapshot<'a>(state: &LoopState, mode: &'a str) -> Snapshot<'a> {
     Snapshot {
         mode,
         iteration: state.iteration,

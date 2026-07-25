@@ -3,12 +3,12 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::handoff::{snapshot, AutoLoopState};
+use crate::handoff::{snapshot, LoopState};
 
 /// Bind a loopback observation server on an OS-assigned port and serve the
 /// current loop state as JSON at `/handoff` (or `/`). The server thread is
 /// detached — it blocks on `accept()` and is reclaimed on process exit.
-pub fn start(state: Arc<Mutex<AutoLoopState>>, mode: &'static str) -> std::io::Result<u16> {
+pub fn start(state: Arc<Mutex<LoopState>>, mode: &'static str) -> std::io::Result<u16> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let port = listener.local_addr()?.port();
 
@@ -23,7 +23,7 @@ pub fn start(state: Arc<Mutex<AutoLoopState>>, mode: &'static str) -> std::io::R
 
 fn handle(
     mut stream: TcpStream,
-    state: &Arc<Mutex<AutoLoopState>>,
+    state: &Arc<Mutex<LoopState>>,
     mode: &'static str,
 ) -> std::io::Result<()> {
     // Read just enough to see the request line; headers/body are irrelevant.

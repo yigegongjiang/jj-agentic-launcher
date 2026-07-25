@@ -11,7 +11,7 @@ pub enum Mode {
 #[derive(Clone, Copy)]
 pub enum LoopSpec {
     Fixed(u32),
-    Auto(u32),
+    Relay(u32),
     Refine(u32),
 }
 
@@ -35,7 +35,7 @@ pub enum AppError {
     Other(String),
 }
 
-pub const DEFAULT_AUTO_MAX_ITER: u32 = 100;
+pub const DEFAULT_MAX_ITER: u32 = 100;
 pub const PROMPT_SEPARATOR: &str = "<<>>";
 
 /// Split on `<<>>`, consuming whitespace adjacent to each separator — mirrors

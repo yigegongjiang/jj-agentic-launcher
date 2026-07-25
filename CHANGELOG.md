@@ -11,6 +11,13 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.0.1] - 2026-07-25
+
+### Changed
+
+- `--loop auto` 改名 `--loop relay`, 不保留别名 (旧写法直接报错)。`auto` 描述的是"次数自动", 与 `refine` 不在同一语义维度, 且掩盖了 refine 同样由 agent 自决停止; `relay` 直指"接力传 baton", 与 `refine` (零上下文重做) 成对。
+- `/handoff` 端点 `mode` 字段值同步 `auto` → `relay`。
+
 ## [1.0.0] - 2026-07-23
 
 ### Changed
@@ -163,6 +170,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.0.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
 [0.12.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.0...v0.11.1

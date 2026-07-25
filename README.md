@@ -25,7 +25,7 @@ jj-prompt-launcher [scene]                          # Interactive REPL
 jj-prompt-launcher [scene] 'prompt'                 # Single-shot + stream-JSON 渲染 (默认)
 jj-prompt-launcher -p [scene] 'prompt'              # Single-shot, raw print 透传
 jj-prompt-launcher --loop N [scene] 'prompt'        # 同一 single-shot 串行 N 次
-jj-prompt-launcher --loop auto [scene] 'prompt'     # 接力式: 后一轮接住前一轮 next_actions
+jj-prompt-launcher --loop relay [scene] 'prompt'    # 接力式: 后一轮接住前一轮 next_actions
 jj-prompt-launcher --loop refine [scene] 'prompt'   # 打磨式: 每轮零上下文重跑原始 prompt
 ```
 
@@ -76,12 +76,12 @@ jj-prompt-launcher d 'hi' --loop 3
 jj-prompt-launcher -p code 'review' --loop 5
 ```
 
-### 自动循环 `--loop auto` / `--loop refine`
+### 自决循环 `--loop relay` / `--loop refine`
 
 两种模式都让 agent 自决何时停止: 每轮全新独立 child (零历史), 用 handoff JSON 作跨轮信号. 区别在**跨轮带什么**.
 
 <!-- prettier-ignore -->
-| 维度 | `--loop auto` (接力) | `--loop refine` (打磨) |
+| 维度 | `--loop relay` (接力) | `--loop refine` (打磨) |
 | --- | --- | --- |
 | 跨轮带 | next_actions + summary + blockers | 只读 status (end/continue) |
 | 第 N 轮看到 | `<previous_handoff>` + `<original_task>` | 与第 1 轮完全相同的原始 prompt |
@@ -91,8 +91,8 @@ jj-prompt-launcher -p code 'review' --loop 5
 
 ```bash
 # 接力式
-jj-prompt-launcher --loop auto d '把 README 翻译成英文并提交 PR'
-jj-prompt-launcher --loop auto code 'fix all type errors' --max-iter 50
+jj-prompt-launcher --loop relay d '把 README 翻译成英文并提交 PR'
+jj-prompt-launcher --loop relay code 'fix all type errors' --max-iter 50
 
 # 打磨式
 jj-prompt-launcher --loop refine d '对整个项目做一次全面性能优化, 找出所有可优化点并修复'
@@ -101,13 +101,13 @@ jj-prompt-launcher --loop refine code 'review src/ 找出所有可读性问题�
 
 end 门槛:
 
-- `auto`: agent 对本轮 + 整体任务非常满意, 无遗留 next_actions, 才写 end.
+- `relay`: agent 对本轮 + 整体任务非常满意, 无遗留 next_actions, 才写 end.
 - `refine`: agent 对本轮非常满意, 且认为再让零上下文 agent 跑同样 prompt 也找不出更多, 才写 end.
 
 handoff 形态 (agent 输出, 父进程消费):
 
 ```
-# --loop auto (接力式)
+# --loop relay (接力式)
 <<JJ_HANDOFF>>
 {
   "status": "end" | "continue",

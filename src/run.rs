@@ -19,7 +19,7 @@ pub struct RunOptions {
     /// Accumulate agent-emitted text (formatter output in stream mode, raw bytes
     /// in print mode) so the caller can scan for the handoff sentinel.
     pub capture_agent_text: bool,
-    /// Override the prompt embedded in this turn (used by `--loop auto`).
+    /// Override the prompt embedded in this turn (used by `--loop relay`).
     pub prompt_override: Option<String>,
     /// Extra system-prompt suffix appended to the scene text (handoff protocol).
     pub system_suffix: Option<String>,

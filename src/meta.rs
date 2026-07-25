@@ -1,5 +1,5 @@
 use crate::config::get_config_dir;
-use crate::parse::DEFAULT_AUTO_MAX_ITER;
+use crate::parse::DEFAULT_MAX_ITER;
 use crate::scenes::list_all_scene_names;
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
@@ -18,19 +18,19 @@ pub fn build_help_text() -> String {
         "{NAME} {VERSION} — Launch Claude Code or Codex with shared scene prompts
 
 Usage:
-  {NAME} [scene]                       Interactive REPL
-  {NAME} [scene] 'prompt'              Single-shot run with stream-JSON renderer (default)
-  {NAME} -p [scene] 'prompt'           Single-shot run with raw print passthrough
+  {NAME} [scene]                         Interactive REPL
+  {NAME} [scene] 'prompt'                Single-shot run with stream-JSON renderer (default)
+  {NAME} -p [scene] 'prompt'             Single-shot run with raw print passthrough
   {NAME} --loop N [scene] 'prompt'       Run the same single-shot N times serially
-  {NAME} --loop auto [scene] 'prompt'    Relay loop: each turn picks up previous turn's handoff
-                                          (status/next_actions). Stops on status=\"end\" or --max-iter
+  {NAME} --loop relay [scene] 'prompt'   Relay loop: each turn picks up previous turn's handoff
+                                                     (status/next_actions). Stops on status=\"end\" or --max-iter
   {NAME} --loop refine [scene] 'prompt'  Refine loop: each turn runs the ORIGINAL prompt verbatim
-                                          in a fresh agent (no cross-turn carry-over except the
-                                          end/continue signal). Stops on status=\"end\" or --max-iter
+                                                     in a fresh agent (no cross-turn carry-over except the
+                                                     end/continue signal). Stops on status=\"end\" or --max-iter
 
-Auto-loop options:
-  --max-iter N                            Safety cap for --loop auto / --loop refine
-                                          (default {DEFAULT_AUTO_MAX_ITER})
+Loop options:
+  --max-iter N                            Safety cap for --loop relay / --loop refine
+                                          (default {DEFAULT_MAX_ITER})
 
 Prompt is a single positional argument. Use shell quoting for any complexity:
   {NAME} d 'multi-line

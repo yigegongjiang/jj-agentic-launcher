@@ -16,11 +16,11 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use handoff::{
-    build_continue_prompt, build_protocol_prompt, build_refine_protocol_prompt, now_millis,
-    parse_handoff, AutoLoopState,
+    build_continue_prompt, build_relay_protocol_prompt, build_refine_protocol_prompt, now_millis,
+    parse_handoff, LoopState,
 };
 use meta::{build_help_text, NAME, VERSION};
-use parse::{parse_invocation, AppError, Invocation, LoopSpec, DEFAULT_AUTO_MAX_ITER};
+use parse::{parse_invocation, AppError, Invocation, LoopSpec, DEFAULT_MAX_ITER};
 use run::{run_invocation, RunOptions};
 
 fn flush_exit(code: i32) -> ! {
@@ -81,7 +81,7 @@ fn parse_flags(
 ) -> Result<(Vec<String>, bool, LoopSpec, Vec<String>), AppError> {
     let mut want_print = false;
     let mut loop_value: Option<String> = None;
-    let mut max_iter = DEFAULT_AUTO_MAX_ITER;
+    let mut max_iter = DEFAULT_MAX_ITER;
     let mut saw_max_iter = false;
     let mut filtered: Vec<String> = Vec::new();
     let mut passthrough: Vec<String> = Vec::new();
@@ -102,7 +102,7 @@ fn parse_flags(
         if arg == "--loop" {
             let Some(next) = args.get(i + 1) else {
                 return Err(AppError::Usage(
-                    "`--loop` requires a value (positive integer, \"auto\", or \"refine\")."
+                    "`--loop` requires a value (positive integer, \"relay\", or \"refine\")."
                         .to_string(),
                 ));
             };
@@ -134,26 +134,26 @@ fn parse_flags(
 
     let mut loop_spec = LoopSpec::Fixed(1);
     if let Some(lv) = loop_value {
-        if lv == "auto" {
-            loop_spec = LoopSpec::Auto(max_iter);
+        if lv == "relay" {
+            loop_spec = LoopSpec::Relay(max_iter);
         } else if lv == "refine" {
             loop_spec = LoopSpec::Refine(max_iter);
         } else {
             let Some(v) = parse_positive(&lv) else {
                 return Err(AppError::Usage(format!(
-                    "Invalid --loop value \"{lv}\". Expected a positive integer, \"auto\", or \"refine\"."
+                    "Invalid --loop value \"{lv}\". Expected a positive integer, \"relay\", or \"refine\"."
                 )));
             };
             if saw_max_iter {
                 return Err(AppError::Usage(
-                    "`--max-iter` only applies to `--loop auto` / `--loop refine`.".to_string(),
+                    "`--max-iter` only applies to `--loop relay` / `--loop refine`.".to_string(),
                 ));
             }
             loop_spec = LoopSpec::Fixed(v);
         }
     } else if saw_max_iter {
         return Err(AppError::Usage(
-            "`--max-iter` requires `--loop auto` or `--loop refine`.".to_string(),
+            "`--max-iter` requires `--loop relay` or `--loop refine`.".to_string(),
         ));
     }
 
@@ -162,7 +162,7 @@ fn parse_flags(
 
 // Stability rule for all loop modes: a single iteration never aborts the loop.
 // child exit != 0, spawn errors, stream errors, handoff parse failures — all are
-// logged as `[warn]` and the loop proceeds. Only `--max-iter` (auto/refine) or
+// logged as `[warn]` and the loop proceeds. Only `--max-iter` (relay/refine) or
 // the configured count (fixed) terminates the loop. status="end" stops early.
 
 fn run_serial_loop(inv: &Invocation, prompts: &[String]) -> i32 {
@@ -246,13 +246,13 @@ fn run_agent_loop(inv: &Invocation, max_iter: u32, mode: &'static str) -> Result
         )));
     };
 
-    let protocol = if mode == "auto" {
-        build_protocol_prompt(max_iter)
+    let protocol = if mode == "relay" {
+        build_relay_protocol_prompt(max_iter)
     } else {
         build_refine_protocol_prompt(max_iter)
     };
 
-    let state = Arc::new(Mutex::new(AutoLoopState::new(max_iter)));
+    let state = Arc::new(Mutex::new(LoopState::new(max_iter)));
     let port = server::start(state.clone(), mode)
         .map_err(|e| AppError::Other(format!("failed to start observation server: {e}")))?;
 
@@ -278,9 +278,9 @@ fn run_agent_loop(inv: &Invocation, max_iter: u32, mode: &'static str) -> Result
         };
         eprintln!("==> loop {iter}/{max_iter} ({mode})");
 
-        // auto: inject previous handoff as baton from round 2 onwards.
+        // relay: inject previous handoff as baton from round 2 onwards.
         // refine: every round uses the original prompt verbatim.
-        let prompt_override = if mode == "auto" {
+        let prompt_override = if mode == "relay" {
             let s = state.lock().unwrap();
             s.handoff
                 .as_ref()
@@ -374,7 +374,7 @@ fn run(raw: &[String]) -> Result<i32, AppError> {
         Ok(run_serial_loop(&inv, &texts))
     } else {
         match inv.loop_spec {
-            LoopSpec::Auto(m) => run_agent_loop(&inv, m, "auto"),
+            LoopSpec::Relay(m) => run_agent_loop(&inv, m, "relay"),
             LoopSpec::Refine(m) => run_agent_loop(&inv, m, "refine"),
             LoopSpec::Fixed(c) => Ok(run_fixed_loop(&inv, c)),
         }

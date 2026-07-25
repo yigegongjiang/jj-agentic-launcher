@@ -7,6 +7,17 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.0.1] - 2026-07-25
+
+### Changed
+
+- `--loop auto` 改名 `--loop relay`, 不保留别名 (旧写法直接报错)。`auto` 描述的是"次数自动", 与 `refine` 不在同一语义维度, 且掩盖了 refine 同样由 agent 自决停止; `relay` 直指"接力传 baton", 与 `refine` (零上下文重做) 成对。
+  - `LoopSpec::Auto` → `Relay`, `AutoLoopState` → `LoopState`, `DEFAULT_AUTO_MAX_ITER` → `DEFAULT_MAX_ITER`, `build_protocol_prompt` → `build_relay_protocol_prompt`; system-prompt 协议头 `[JJ_LOOP_AUTO]` → `[JJ_LOOP_RELAY]`。
+  - 无兼容分支: `parse_flags` 只认 `"relay"` / `"refine"` / 正整数, `--loop auto` 落入 Usage 错误路径。
+  - 顺带修 `build_help_text` Usage 块列对齐: 描述列统一到运行时第 54 列 (续行原硬编码 42 空格, 未计入 `{NAME}` 展开的 +12 偏移)。
+- `/handoff` 端点 `mode` 字段值同步 `auto` → `relay`。
+  - `run_agent_loop` 的 `mode: &'static str` 实参改为 `"relay"`, 经 `server::start` 透传进 `Snapshot.mode`。
+
 ## [1.0.0] - 2026-07-23
 
 ### Changed
@@ -186,6 +197,7 @@
 [0.10.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.2...v0.8.0
+[1.0.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
 [0.7.2]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.0...v0.7.1
