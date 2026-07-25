@@ -27,6 +27,12 @@ pub struct Invocation {
     pub loop_spec: LoopSpec,
     // Tokens after a literal `--`, forwarded verbatim to the child engine.
     pub passthrough_args: Option<Vec<String>>,
+    // `--pre <cmd>`: shell command run in the same shell session the engine is
+    // then `exec`d into, so the engine inherits its cwd / env / sourced state.
+    // Runs before every child spawn (loop iterations and `<<>>` steps included) —
+    // shell state cannot outlive its process, so a once-only run would leave
+    // rounds 2..N in the original cwd.
+    pub pre_cmd: Option<String>,
 }
 
 /// Top-level error type. `Usage` prints help + exit 2; `Other` prints + exit 1.
@@ -67,6 +73,7 @@ pub fn parse_invocation(
     want_print: bool,
     loop_spec: LoopSpec,
     passthrough: Vec<String>,
+    pre_cmd: Option<String>,
 ) -> Result<Invocation, AppError> {
     let passthrough_args = if passthrough.is_empty() {
         None
@@ -101,6 +108,7 @@ pub fn parse_invocation(
             user_texts: None,
             loop_spec: LoopSpec::Fixed(1),
             passthrough_args,
+            pre_cmd,
         });
     }
 
@@ -126,6 +134,7 @@ pub fn parse_invocation(
             user_texts: None,
             loop_spec: LoopSpec::Fixed(1),
             passthrough_args,
+            pre_cmd,
         });
     }
 
@@ -159,5 +168,6 @@ pub fn parse_invocation(
         user_texts: if is_split { Some(segments) } else { None },
         loop_spec,
         passthrough_args,
+        pre_cmd,
     })
 }

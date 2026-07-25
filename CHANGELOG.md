@@ -11,6 +11,13 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.1.0] - 2026-07-25
+
+### Added
+
+- `--pre '<cmd>'`: 先在交互 shell 里执行 `<cmd>`, 引擎随后顶替该 shell 继续跑, 继承它留下的 cwd / 环境变量 / source 状态。`--pre 'j api'`、`--pre 'cd $(fd -t d | fzf)'`、`--pre 'source .venv/bin/activate && cd backend'` 均生效, fzf 这类 TUI 选择器可正常交互。
+- `--pre` 在每次引擎启动前执行 (含 `--loop` 每轮与 `<<>>` 每段); `<cmd>` 非零退出直接终止, 不启动引擎。仅命令行传入, config.json 不支持配置。
+
 ## [1.0.1] - 2026-07-25
 
 ### Changed
@@ -170,6 +177,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.1.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
 [0.12.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.1...v0.12.0

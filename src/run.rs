@@ -45,6 +45,7 @@ struct LaunchPlan {
     binary: &'static str,
     formatter: Option<FormatterKind>,
     interactive: bool,
+    pre_cmd: Option<String>,
 }
 
 pub fn run_invocation(inv: &Invocation, opts: RunOptions) -> Result<RunOutcome, String> {
@@ -82,6 +83,7 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
         binary: if is_claude { CLAUDE_BIN } else { CODEX_BIN },
         formatter,
         interactive: matches!(inv.mode, Mode::Interactive),
+        pre_cmd: inv.pre_cmd.clone(),
     })
 }
 
@@ -101,7 +103,7 @@ fn build_final_args(
     }
 
     if is_claude {
-        args.extend(sanitize_mcp_config(config_args));
+        args.extend(sanitize_mcp_config(config_args, inv.pre_cmd.is_some()));
     } else {
         args.extend(config_args);
     }
@@ -138,8 +140,18 @@ fn build_final_args(
 /// Drop non-existent `--mcp-config` file paths so a missing project `.mcp.json`
 /// doesn't abort `claude` startup. Inline JSON (starts with `{`) and existing
 /// files are kept; a `--mcp-config` left with no surviving source is removed.
-fn sanitize_mcp_config(args: Vec<String>) -> Vec<String> {
-    let keep = |s: &str| s.trim_start().starts_with('{') || Path::new(s).exists();
+///
+/// `defer_relative` is set under `--pre`: the engine then runs in whatever cwd
+/// the pre command left behind, which this process cannot know, so relative
+/// paths are kept verbatim here and gated by `[ -f ]` in the generated script
+/// instead (see `shell::build_script`). Absolute paths stay cwd-independent and
+/// are still checked here.
+fn sanitize_mcp_config(args: Vec<String>, defer_relative: bool) -> Vec<String> {
+    let keep = |s: &str| {
+        s.trim_start().starts_with('{')
+            || (defer_relative && !Path::new(s).is_absolute())
+            || Path::new(s).exists()
+    };
     let mut out: Vec<String> = Vec::new();
     let mut i = 0;
     while i < args.len() {
@@ -192,18 +204,80 @@ fn render_line(fmt: &mut Fmt, line: &str) -> Option<String> {
     }
 }
 
+/// Shell hosting `--pre`. `$SHELL` rather than a fixed `/bin/sh`: jump and picker
+/// helpers like `j` are functions defined by the user's rc file, not binaries on
+/// PATH, so they only exist in that particular shell.
+fn shell_path() -> String {
+    std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "/bin/sh".to_string())
+}
+
+/// The program actually spawned — the engine itself, or the shell that runs
+/// `--pre` and then `exec`s into the engine.
+fn spawn_program(plan: &LaunchPlan) -> String {
+    match plan.pre_cmd {
+        Some(_) => shell_path(),
+        None => plan.binary.to_string(),
+    }
+}
+
+fn build_command(plan: &LaunchPlan) -> Command {
+    let Some(pre) = &plan.pre_cmd else {
+        let mut cmd = Command::new(plan.binary);
+        cmd.args(&plan.args);
+        return cmd;
+    };
+
+    // The engine's stdin is closed inside the script at `exec` time only, so the
+    // pre command still sees the inherited stdin and interactive pickers can read
+    // their candidate list.
+    let script = crate::shell::build_script(pre, plan.binary, &plan.args, !plan.interactive);
+    let mut cmd = Command::new(shell_path());
+    // `-i` loads the user's rc; without it shell functions and aliases (`j`, `z`,
+    // …) simply do not exist.
+    cmd.arg("-i").arg("-c").arg(&script);
+    // Prompt integrations loaded from rc (iTerm2 et al.) write OSC escapes to
+    // stdout at startup, which would corrupt the stream-JSON pipe. `dumb` keeps
+    // them silent; the script restores the real TERM before running the pre
+    // command, so TUIs there still work.
+    cmd.env("TERM", "dumb");
+    cmd
+}
+
 fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String> {
+    if let Some(pre) = &plan.pre_cmd {
+        eprint!(
+            "{}",
+            render_launch_preview(&["pre:".to_string(), pre.clone()])
+        );
+    }
     let cmd_display: Vec<String> = std::iter::once(plan.binary.to_string())
         .chain(plan.args.iter().cloned())
         .collect();
     eprint!("{}", render_launch_preview(&cmd_display));
 
+    // The line above is what this process assembled, not necessarily what the
+    // engine receives: relative --mcp-config paths are resolved in the cwd the
+    // pre command ends up in. Say so rather than let the preview mislead.
+    if plan.pre_cmd.is_some() {
+        let deferred = crate::shell::deferred_mcp_paths(&plan.args);
+        if !deferred.is_empty() {
+            eprintln!(
+                "[note] --mcp-config {} is resolved after `--pre`; dropped if absent in the resulting cwd.",
+                deferred.join(" ")
+            );
+        }
+    }
+
+    let program = spawn_program(&plan);
+
     // Interactive (REPL): inherit all stdio, no piping.
     if plan.interactive {
-        let status = Command::new(plan.binary)
-            .args(&plan.args)
+        let status = build_command(&plan)
             .status()
-            .map_err(|e| spawn_error_message(plan.binary, &e))?;
+            .map_err(|e| spawn_error_message(&program, &e))?;
         return Ok(RunOutcome {
             exit_code: status.code().unwrap_or(1),
             agent_text: Vec::new(),
@@ -211,12 +285,15 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
     }
 
     // Non-interactive: pipe stdout so we can tee to terminal + scan for sentinel.
-    let mut child = Command::new(plan.binary)
-        .args(&plan.args)
-        .stdin(Stdio::null())
+    let mut child = build_command(&plan)
+        .stdin(if plan.pre_cmd.is_some() {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .spawn()
-        .map_err(|e| spawn_error_message(plan.binary, &e))?;
+        .map_err(|e| spawn_error_message(&program, &e))?;
 
     let mut agent_text: Vec<u8> = Vec::new();
     let capture = opts.capture_agent_text;
@@ -224,7 +301,7 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
     let Some(mut stdout) = child.stdout.take() else {
         let status = child
             .wait()
-            .map_err(|e| format!("failed to wait for `{}`: {e}", plan.binary))?;
+            .map_err(|e| format!("failed to wait for `{program}`: {e}"))?;
         return Ok(RunOutcome {
             exit_code: status.code().unwrap_or(1),
             agent_text,
@@ -280,7 +357,7 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
             Err(e) => {
                 // A mid-stream error must not abort the outer loop; surface it and
                 // let the child finish so the caller sees a real exit code.
-                eprintln!("[warn] stdout stream error from `{}`: {e}", plan.binary);
+                eprintln!("[warn] stdout stream error from `{program}`: {e}");
                 break;
             }
         }

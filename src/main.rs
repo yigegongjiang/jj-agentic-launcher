@@ -10,6 +10,7 @@ mod preview;
 mod run;
 mod scenes;
 mod server;
+mod shell;
 mod update;
 
 use std::io::Write;
@@ -76,13 +77,21 @@ fn parse_positive(s: &str) -> Option<u32> {
     }
 }
 
-fn parse_flags(
-    args: &[String],
-) -> Result<(Vec<String>, bool, LoopSpec, Vec<String>), AppError> {
+/// Flags peeled off argv before scene / prompt resolution.
+struct Flags {
+    args: Vec<String>,
+    want_print: bool,
+    loop_spec: LoopSpec,
+    passthrough: Vec<String>,
+    pre_cmd: Option<String>,
+}
+
+fn parse_flags(args: &[String]) -> Result<Flags, AppError> {
     let mut want_print = false;
     let mut loop_value: Option<String> = None;
     let mut max_iter = DEFAULT_MAX_ITER;
     let mut saw_max_iter = false;
+    let mut pre_cmd: Option<String> = None;
     let mut filtered: Vec<String> = Vec::new();
     let mut passthrough: Vec<String> = Vec::new();
 
@@ -128,6 +137,21 @@ fn parse_flags(
             i += 2;
             continue;
         }
+        if arg == "--pre" {
+            let Some(next) = args.get(i + 1) else {
+                return Err(AppError::Usage(
+                    "`--pre` requires a shell command value.".to_string(),
+                ));
+            };
+            if next.trim().is_empty() {
+                return Err(AppError::Usage(
+                    "`--pre` command must not be empty.".to_string(),
+                ));
+            }
+            pre_cmd = Some(next.clone());
+            i += 2;
+            continue;
+        }
         filtered.push(arg.clone());
         i += 1;
     }
@@ -157,7 +181,13 @@ fn parse_flags(
         ));
     }
 
-    Ok((filtered, want_print, loop_spec, passthrough))
+    Ok(Flags {
+        args: filtered,
+        want_print,
+        loop_spec,
+        passthrough,
+        pre_cmd,
+    })
 }
 
 // Stability rule for all loop modes: a single iteration never aborts the loop.
@@ -367,8 +397,14 @@ fn run_agent_loop(inv: &Invocation, max_iter: u32, mode: &'static str) -> Result
 }
 
 fn run(raw: &[String]) -> Result<i32, AppError> {
-    let (args, want_print, loop_spec, passthrough) = parse_flags(raw)?;
-    let inv = parse_invocation(args, want_print, loop_spec, passthrough)?;
+    let flags = parse_flags(raw)?;
+    let inv = parse_invocation(
+        flags.args,
+        flags.want_print,
+        flags.loop_spec,
+        flags.passthrough,
+        flags.pre_cmd,
+    )?;
 
     if let Some(texts) = inv.user_texts.clone() {
         Ok(run_serial_loop(&inv, &texts))

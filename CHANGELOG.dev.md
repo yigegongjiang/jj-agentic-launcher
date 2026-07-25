@@ -7,6 +7,20 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.1.0] - 2026-07-25
+
+### Added
+
+- `--pre '<cmd>'`: 先在交互 shell 里执行 `<cmd>`, 引擎随后顶替该 shell 继续跑, 继承它留下的 cwd / 环境变量 / source 状态。`--pre 'j api'`、`--pre 'cd $(fd -t d | fzf)'`、`--pre 'source .venv/bin/activate && cd backend'` 均生效, fzf 这类 TUI 选择器可正常交互。
+  - 新增 `src/shell.rs`: `quote` (POSIX 单引号, `'` → `'\''`) + `build_script` 生成 `$SHELL -i -c` 脚本; `run.rs` 的 `build_command` 在 `pre_cmd` 为 `None` 时走原 `Command::new(binary)` 路径, 零回归面。
+  - 脚本形态: `export TERM=<真值>` → `{ <cmd> } 1>&2 || exit $?` → `set --` 逐段构建 argv → `exec <engine> "$@"`; `exec` 保证进程树扁平, 信号 / exit code 直传。
+  - spawn 时置 `TERM=dumb`: rc 里的 shell integration (iTerm2 等) 启动即往 stdout 吐 OSC 序列, 会污染 stream-JSON 管道; 脚本首行恢复真 `TERM` 供 fzf 用 terminfo。
+  - 非交互模式 stdin 由 `Stdio::null()` 改为 `inherit()`, 引擎的 stdin 改由脚本末尾 `</dev/null` 掐断 — pre 阶段保留 tty/管道供选择器读候选。
+  - `sanitize_mcp_config` 加 `defer_relative`: `--pre` 下父进程 cwd ≠ 引擎 cwd, 相对路径原样保留, 改由脚本内 `[ -f ]` 循环守卫 (一组只产生一个 `--mcp-config`, 避免重复 flag 相互覆盖)。
+- `--pre` 在每次引擎启动前执行 (含 `--loop` 每轮与 `<<>>` 每段); `<cmd>` 非零退出直接终止, 不启动引擎。仅命令行传入, config.json 不支持配置。
+  - `pre_cmd` 挂在 `Invocation` 上而非 `run()` 前置一次: shell 状态无法跨进程存活, 只跑首轮会让第 2..N 轮回退到原 cwd。
+  - `parse_flags` 返回值由 4-tuple 改为 `Flags` struct; `--pre` 空值 / 缺值走 `AppError::Usage`。
+
 ## [1.0.1] - 2026-07-25
 
 ### Changed
@@ -197,6 +211,7 @@
 [0.10.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.2...v0.8.0
+[1.1.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
 [0.7.2]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.1...v0.7.2

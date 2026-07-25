@@ -27,12 +27,31 @@ jj-prompt-launcher -p [scene] 'prompt'              # Single-shot, raw print 透
 jj-prompt-launcher --loop N [scene] 'prompt'        # 同一 single-shot 串行 N 次
 jj-prompt-launcher --loop relay [scene] 'prompt'    # 接力式: 后一轮接住前一轮 next_actions
 jj-prompt-launcher --loop refine [scene] 'prompt'   # 打磨式: 每轮零上下文重跑原始 prompt
+jj-prompt-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继承其 shell 状态
 ```
 
 - 默认引擎 Claude Code: `jj-prompt-launcher d`. 前缀 `.` 走 Codex: `jj-prompt-launcher .d`.
 - 无 scene → 用 `scenes.default` (config).
 - 内置 scene: `default` / `ai-expert` / `it-expert` / `code-expert` / `address`.
 - 别名: `d`→`default`, `ai`→`ai-expert`, `it`→`it-expert`, `code`→`code-expert`.
+
+### 前置命令 `--pre`
+
+`--pre '<cmd>'` 在交互 `$SHELL` 里执行 `<cmd>`, 随后引擎 `exec` 顶替该 shell 进程 — 继承 `<cmd>` 留下的全部 shell 状态 (cwd / 环境变量 / source / shell function):
+
+```bash
+jj-prompt-launcher --pre 'j api' it '讲下这个项目的架构'
+jj-prompt-launcher --pre 'cd $(fd -t d | fzf)' d 'review 这个目录'
+jj-prompt-launcher --pre 'source .venv/bin/activate && cd backend' code 'run tests'
+jj-prompt-launcher --pre 'git pull' --loop refine code 'fix all type errors'
+```
+
+- 交互 shell (`-i`) 加载 rc, 所以 `j` / `z` 这类 shell function 可用; fzf 等 TUI 走 `/dev/tty`, 不受 stdout 管道影响.
+- `exec` 顶替而非嵌套: 进程树不多一层, 信号与 exit code 直传引擎.
+- `<cmd>` 的 stdout 转 stderr, 不污染引擎输出流; 非零退出直接终止, 不启动引擎.
+- 每次子进程启动前都执行 (含 `--loop` 每轮、`<<>>` 每段). shell 状态不能跨进程存活, 只跑首轮会让第 2..N 轮回到原 cwd.
+- POSIX sh 语法, `$SHELL` 需为 `sh` / `bash` / `zsh`; fish 不支持.
+- 仅命令行传入, config.json 不支持 — 可分享的配置文件不承载 shell 命令.
 
 ### Prompt 传参
 

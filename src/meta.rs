@@ -32,6 +32,18 @@ Loop options:
   --max-iter N                            Safety cap for --loop relay / --loop refine
                                           (default {DEFAULT_MAX_ITER})
 
+Pre-command:
+  --pre '<cmd>'                           Run <cmd> in an interactive $SHELL, then exec the engine in
+                                          that same shell, inheriting whatever the command left behind
+                                          (cwd, exported vars, sourced state, shell functions):
+                                            {NAME} --pre 'j api' it 'explain the architecture'
+                                            {NAME} --pre 'cd $(fd -t d | fzf)' d 'review this'
+                                            {NAME} --pre 'source .venv/bin/activate' code 'run tests'
+                                          Runs before every child spawn — each --loop iteration and
+                                          each `<<>>` step (shell state cannot outlive its process).
+                                          A non-zero exit aborts before the engine starts.
+                                          POSIX sh syntax; $SHELL must be sh/bash/zsh (not fish).
+
 Prompt is a single positional argument. Use shell quoting for any complexity:
   {NAME} d 'multi-line
 prompt with $vars, \"quotes\", \\ backslashes — POSIX single-quote keeps it literal'

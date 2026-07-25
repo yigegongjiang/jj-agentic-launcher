@@ -1,6 +1,6 @@
 [package]
 name = "jj-prompt-launcher"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 description = "Launch Claude Code or Codex with shared scene prompts"
 repository = "https://github.com/yigegongjiang/jj-prompt-launcher"
