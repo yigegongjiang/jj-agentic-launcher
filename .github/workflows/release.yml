@@ -40,14 +40,14 @@ jobs:
       - name: Assemble artifacts
         run: |
           mkdir -p dist
-          cp target/aarch64-apple-darwin/release/jj-prompt-launcher dist/jj-prompt-launcher-darwin-arm64
-          cp target/x86_64-apple-darwin/release/jj-prompt-launcher  dist/jj-prompt-launcher-darwin-x64
+          cp target/aarch64-apple-darwin/release/jj-agentic-launcher dist/jj-agentic-launcher-darwin-arm64
+          cp target/x86_64-apple-darwin/release/jj-agentic-launcher  dist/jj-agentic-launcher-darwin-x64
 
       - name: Generate SHA256 checksums
         working-directory: dist
         run: |
           shopt -s nullglob
-          files=( jj-prompt-launcher-* )
+          files=( jj-agentic-launcher-* )
           [ ${#files[@]} -gt 0 ] || { echo "no build artifacts found in dist/" >&2; exit 1; }
           shasum -a 256 "${files[@]}" > checksums.txt
           cat checksums.txt

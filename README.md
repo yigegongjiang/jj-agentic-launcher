@@ -6,14 +6,14 @@
 - NEVER 写「开发」段 (VibeCoding 不向人类解释 dev 命令)
 ```
 
-# jj-prompt-launcher
+# jj-agentic-launcher
 
 启动器: 把共享 scene prompt 注入 Claude Code / Codex. Rust 单文件可执行 (仅 macOS). 打 tag → GitHub Actions 自动构建并发布 release; 用户用 `install.sh` 一键安装, 或通过内置 `update` 子命令自更新.
 
 ## 安装
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yigegongjiang/jj-prompt-launcher/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yigegongjiang/jj-agentic-launcher/main/scripts/install.sh | bash
 ```
 
 依赖: `claude`、`codex` CLI 需另行安装并在 `PATH` 中. 默认装到 `$HOME/.local/bin`. 可用 `VERSION` / `INSTALL_DIR` / `REPO` 覆写.
@@ -21,16 +21,16 @@ curl -fsSL https://raw.githubusercontent.com/yigegongjiang/jj-prompt-launcher/ma
 ## 用法
 
 ```
-jj-prompt-launcher [scene]                          # Interactive REPL
-jj-prompt-launcher [scene] 'prompt'                 # Single-shot + stream-JSON 渲染 (默认)
-jj-prompt-launcher -p [scene] 'prompt'              # Single-shot, raw print 透传
-jj-prompt-launcher --loop N [scene] 'prompt'        # 同一 single-shot 串行 N 次
-jj-prompt-launcher --loop relay [scene] 'prompt'    # 接力式: 后一轮接住前一轮 next_actions
-jj-prompt-launcher --loop refine [scene] 'prompt'   # 打磨式: 每轮零上下文重跑原始 prompt
-jj-prompt-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继承其 shell 状态
+jj-agentic-launcher [scene]                          # Interactive REPL
+jj-agentic-launcher [scene] 'prompt'                 # Single-shot + stream-JSON 渲染 (默认)
+jj-agentic-launcher -p [scene] 'prompt'              # Single-shot, raw print 透传
+jj-agentic-launcher --loop N [scene] 'prompt'        # 同一 single-shot 串行 N 次
+jj-agentic-launcher --loop relay [scene] 'prompt'    # 接力式: 后一轮接住前一轮 next_actions
+jj-agentic-launcher --loop refine [scene] 'prompt'   # 打磨式: 每轮零上下文重跑原始 prompt
+jj-agentic-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继承其 shell 状态
 ```
 
-- 默认引擎 Claude Code: `jj-prompt-launcher d`. 前缀 `.` 走 Codex: `jj-prompt-launcher .d`.
+- 默认引擎 Claude Code: `jj-agentic-launcher d`. 前缀 `.` 走 Codex: `jj-agentic-launcher .d`.
 - 无 scene → 用 `scenes.default` (config).
 - 内置 scene: `default` / `ai-expert` / `it-expert` / `code-expert` / `address`.
 - 别名: `d`→`default`, `ai`→`ai-expert`, `it`→`it-expert`, `code`→`code-expert`.
@@ -40,10 +40,10 @@ jj-prompt-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继承
 `--pre '<cmd>'` 在交互 `$SHELL` 里执行 `<cmd>`, 随后引擎 `exec` 顶替该 shell 进程 — 继承 `<cmd>` 留下的全部 shell 状态 (cwd / 环境变量 / source / shell function):
 
 ```bash
-jj-prompt-launcher --pre 'j api' it '讲下这个项目的架构'
-jj-prompt-launcher --pre 'cd $(fd -t d | fzf)' d 'review 这个目录'
-jj-prompt-launcher --pre 'source .venv/bin/activate && cd backend' code 'run tests'
-jj-prompt-launcher --pre 'git pull' --loop refine code 'fix all type errors'
+jj-agentic-launcher --pre 'j api' it '讲下这个项目的架构'
+jj-agentic-launcher --pre 'cd $(fd -t d | fzf)' d 'review 这个目录'
+jj-agentic-launcher --pre 'source .venv/bin/activate && cd backend' code 'run tests'
+jj-agentic-launcher --pre 'git pull' --loop refine code 'fix all type errors'
 ```
 
 - 交互 shell (`-i`) 加载 rc, 所以 `j` / `z` 这类 shell function 可用; fzf 等 TUI 走 `/dev/tty`, 不受 stdout 管道影响.
@@ -58,19 +58,19 @@ jj-prompt-launcher --pre 'git pull' --loop refine code 'fix all type errors'
 prompt 是单个位置参数, 用 shell 引号 (推荐单引号) 一行喂入. POSIX 单引号内除 `'` 外所有字符 (含换行) 字面保留, 零转义:
 
 ```bash
-jj-prompt-launcher d 'hello'
-jj-prompt-launcher d '多行 prompt
+jj-agentic-launcher d 'hello'
+jj-agentic-launcher d '多行 prompt
 含 $variable、"双引号"、反斜杠 \、特殊符号 ¥%&* 一概原样'
-jj-prompt-launcher d "$(cat prompt.md)"     # 文件喂入 (shell 处理)
-jj-prompt-launcher -p code 'review 这段 diff'
+jj-agentic-launcher d "$(cat prompt.md)"     # 文件喂入 (shell 处理)
+jj-agentic-launcher -p code 'review 这段 diff'
 ```
 
 内容含 `'` 时:
 
 ```bash
-jj-prompt-launcher d "I'm here"             # 切双引号
-jj-prompt-launcher d 'I'\''m here'          # POSIX 拼接
-jj-prompt-launcher d <<<"I'm here"          # here-string (bash/zsh)
+jj-agentic-launcher d "I'm here"             # 切双引号
+jj-agentic-launcher d 'I'\''m here'          # POSIX 拼接
+jj-agentic-launcher d <<<"I'm here"          # here-string (bash/zsh)
 ```
 
 ### 顺序分段 `<<>>`
@@ -78,8 +78,8 @@ jj-prompt-launcher d <<<"I'm here"          # here-string (bash/zsh)
 prompt 中嵌入 `<<>>` 拆成 N 段独立 single-shot 依序串行执行 (每段全新 child, 零跨轮状态):
 
 ```bash
-jj-prompt-launcher d 'step 1 <<>> step 2 <<>> step 3'
-jj-prompt-launcher -p code 'review src/foo.ts <<>> review src/bar.ts'
+jj-agentic-launcher d 'step 1 <<>> step 2 <<>> step 3'
+jj-agentic-launcher -p code 'review src/foo.ts <<>> review src/bar.ts'
 ```
 
 - 分隔符两侧空白吃掉; 至少 2 段且每段非空.
@@ -91,8 +91,8 @@ jj-prompt-launcher -p code 'review src/foo.ts <<>> review src/bar.ts'
 仅非交互场景 (给定 prompt 时) 可用. 等上一次 child 退出再启下一次. 任一轮 child 非 0 退出或 spawn 异常仅 `[warn]` 并继续, loop 必跑满 N 次, 返回最后一轮 exit code.
 
 ```bash
-jj-prompt-launcher d 'hi' --loop 3
-jj-prompt-launcher -p code 'review' --loop 5
+jj-agentic-launcher d 'hi' --loop 3
+jj-agentic-launcher -p code 'review' --loop 5
 ```
 
 ### 自决循环 `--loop relay` / `--loop refine`
@@ -110,12 +110,12 @@ jj-prompt-launcher -p code 'review' --loop 5
 
 ```bash
 # 接力式
-jj-prompt-launcher --loop relay d '把 README 翻译成英文并提交 PR'
-jj-prompt-launcher --loop relay code 'fix all type errors' --max-iter 50
+jj-agentic-launcher --loop relay d '把 README 翻译成英文并提交 PR'
+jj-agentic-launcher --loop relay code 'fix all type errors' --max-iter 50
 
 # 打磨式
-jj-prompt-launcher --loop refine d '对整个项目做一次全面性能优化, 找出所有可优化点并修复'
-jj-prompt-launcher --loop refine code 'review src/ 找出所有可读性问题并修复' --max-iter 10
+jj-agentic-launcher --loop refine d '对整个项目做一次全面性能优化, 找出所有可优化点并修复'
+jj-agentic-launcher --loop refine code 'review src/ 找出所有可读性问题并修复' --max-iter 10
 ```
 
 end 门槛:
@@ -167,20 +167,20 @@ curl http://127.0.0.1:53811/handoff   # 返回 mode + iteration + history JSON
 
 ## 配置
 
-首次运行自动初始化 `~/.config/jj-prompt-launcher/`:
+首次运行自动初始化 `~/.config/jj-agentic-launcher/`:
 
 ```
 config.json    # 引擎参数 (claude/codex args + interactive/print/stream 分模式覆写) + scene 别名
 scenes/*.md    # 自定义 scene 文件 (首次运行内置 scene 落盘)
 ```
 
-新增 scene: `scenes/foo.md` + `config.json` → `scenes.aliases` 加 `"f": "foo"` → `jj-prompt-launcher foo` / `f` / `.f` 均可用.
+新增 scene: `scenes/foo.md` + `config.json` → `scenes.aliases` 加 `"f": "foo"` → `jj-agentic-launcher foo` / `f` / `.f` 均可用.
 
 ## 自更新 / 卸载
 
 ```bash
-jj-prompt-launcher update      # 与 upgrade 等价, 拉 latest release 原子替换
-jj-prompt-launcher uninstall   # 删除当前二进制
+jj-agentic-launcher update      # 与 upgrade 等价, 拉 latest release 原子替换
+jj-agentic-launcher uninstall   # 删除当前二进制
 ```
 
 ## 架构

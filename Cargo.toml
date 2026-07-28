@@ -1,13 +1,13 @@
 [package]
-name = "jj-prompt-launcher"
-version = "1.1.0"
+name = "jj-agentic-launcher"
+version = "1.2.0"
 edition = "2021"
 description = "Launch Claude Code or Codex with shared scene prompts"
-repository = "https://github.com/yigegongjiang/jj-prompt-launcher"
+repository = "https://github.com/yigegongjiang/jj-agentic-launcher"
 license = "MIT"
 
 [[bin]]
-name = "jj-prompt-launcher"
+name = "jj-agentic-launcher"
 path = "src/main.rs"
 
 [dependencies]

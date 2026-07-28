@@ -12,7 +12,7 @@ pub fn get_config_dir() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/"));
-    home.join(".config").join("jj-prompt-launcher")
+    home.join(".config").join("jj-agentic-launcher")
 }
 
 // --- Types ---

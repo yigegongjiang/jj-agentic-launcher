@@ -7,6 +7,22 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.2.0] - 2026-07-28
+
+### Changed
+
+- **Breaking**: 全项目改名 `jj-prompt-launcher` → `jj-agentic-launcher` (命令名 + binary 产物名 + repo 名统一)。旧命令需手动删除: `rm ~/.local/bin/jj-prompt-launcher`。
+  - `Cargo.toml` `package.name` / `[[bin]].name` / `repository`, `src/meta.rs` `REPO` slug, `src/parse.rs` usage 串, `scripts/install*.sh` `BIN_NAME` / `REPO`, `.github/workflows/release.yml` 产物名全部同步。
+  - GitHub repo `yigegongjiang/jj-prompt-launcher` → `jj-agentic-launcher` (旧 URL 由 GitHub 永久重定向); 本地 remote + 工作目录同步改名。
+  - release asset 名契约随之变为 `jj-agentic-launcher-darwin-{arm64,x64}`; 旧版本二进制的 `update` 子命令仍指向旧 slug, 经 GitHub 重定向可继续工作, 但会拉到旧 asset 名 — 旧版需重新走 `install.sh`。
+- **Breaking**: config 目录 `~/.config/jj-prompt-launcher/` → `~/.config/jj-agentic-launcher/`, 旧目录需手动 `mv` 迁移。
+  - `src/config.rs` `get_config_dir()` 单点改名; 不加自动迁移分支 (与 0.12.0 改名一致, 避免留长期兼容代码)。
+
+### Fixed
+
+- 安装命令 URL 修正为仓库内实际路径 (`main/scripts/install.sh`), 旧 URL 404。
+  - `install.sh` 自 0.12.0 起就在 `scripts/` 下, README 的 raw URL 未同步。
+
 ## [1.1.0] - 2026-07-25
 
 ### Added
@@ -205,20 +221,21 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
-[0.12.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.1...v0.12.0
-[0.11.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.2...v0.8.0
-[1.1.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.1...v1.1.0
-[1.0.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.12.0...v1.0.0
-[0.7.2]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.1...v0.7.2
-[0.7.1]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.7.0...v0.7.1
-[0.7.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/yigegongjiang/jj-prompt-launcher/compare/v0.1.0...v0.3.0
-[0.1.0]: https://github.com/yigegongjiang/jj-prompt-launcher/releases/tag/v0.1.0
+[1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
+[0.12.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.7.2...v0.8.0
+[1.1.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.12.0...v1.0.0
+[0.7.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.1.0...v0.3.0
+[0.1.0]: https://github.com/yigegongjiang/jj-agentic-launcher/releases/tag/v0.1.0

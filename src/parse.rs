@@ -83,7 +83,7 @@ pub fn parse_invocation(
 
     if args.len() > 2 {
         return Err(AppError::Usage(
-            "Too many arguments. Usage: jj-prompt-launcher [scene] [prompt]".to_string(),
+            "Too many arguments. Usage: jj-agentic-launcher [scene] [prompt]".to_string(),
         ));
     }
 

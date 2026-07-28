@@ -11,7 +11,7 @@
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-BIN_NAME="${BIN_NAME:-jj-prompt-launcher}"
+BIN_NAME="${BIN_NAME:-jj-agentic-launcher}"
 
 err()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { printf '%s\n' "$*"; }

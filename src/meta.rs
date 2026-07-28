@@ -7,7 +7,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 // GitHub owner/repo slug used to build release URLs. Kept as a const rather than
 // `CARGO_PKG_REPOSITORY` (a full URL) because the update/install contract needs
 // the slug form.
-pub const REPO: &str = "yigegongjiang/jj-prompt-launcher";
+pub const REPO: &str = "yigegongjiang/jj-agentic-launcher";
 
 pub fn build_help_text() -> String {
     let scenes = list_all_scene_names().join(", ");

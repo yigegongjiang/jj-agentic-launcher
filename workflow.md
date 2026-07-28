@@ -18,7 +18,7 @@
 
 依序执行:
 
-1. 验证: `cargo build --release && cargo build --release --target x86_64-apple-darwin && ./target/release/jj-prompt-launcher version`
+1. 验证: `cargo build --release && cargo build --release --target x86_64-apple-darwin && ./target/release/jj-agentic-launcher version`
 2. 写版本: `Cargo.toml [package] version` + `CHANGELOG.md` + `CHANGELOG.dev.md` 同步编辑 (与 tag 一致); `cargo build` 一次同步 `Cargo.lock`
 3. 预部署: `bash scripts/install-local.sh` (本机装上新版)
 4. 发布: commit + annotated tag (`-a -m`) + push branch + tag
@@ -28,7 +28,7 @@
 ```bash
 cargo build --release
 cargo build --release --target x86_64-apple-darwin
-./target/release/jj-prompt-launcher version
+./target/release/jj-agentic-launcher version
 ```
 
 > 编译即类型 / 借用检查, 无独立 typecheck. 交叉编译目标需先 `rustup target add x86_64-apple-darwin`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — download the latest jj-prompt-launcher binary from GitHub Releases.
+# install.sh — download the latest jj-agentic-launcher binary from GitHub Releases.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | bash
@@ -8,11 +8,11 @@
 
 set -euo pipefail
 
-REPO="${REPO:-yigegongjiang/jj-prompt-launcher}"
+REPO="${REPO:-yigegongjiang/jj-agentic-launcher}"
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-# package.json#name == repo name == binary name == "jj-prompt-launcher".
-BIN_NAME="${BIN_NAME:-jj-prompt-launcher}"
+# Cargo.toml package name == repo name == binary name == "jj-agentic-launcher".
+BIN_NAME="${BIN_NAME:-jj-agentic-launcher}"
 
 err()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { printf '%s\n' "$*"; }
