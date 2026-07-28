@@ -7,6 +7,14 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.2.1] - 2026-07-28
+
+### Changed
+
+- `scenes/*.md` 全量重写 (compile-time `include_str!` 嵌入, 属交付物变更 → 跟版本发布)。
+  - 结构统一: 角色/约束改英文指令, `address` 增 `<examples>` few-shot, 语言输出要求下沉到 prompt 顶部。
+  - `init.rs` 仅在 config.json 缺失时落盘, 老用户 config 目录不受影响 (设计如此, 不加覆盖逻辑)。
+
 ## [1.2.0] - 2026-07-28
 
 ### Changed
@@ -221,6 +229,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
 [0.12.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.11.0...v0.11.1

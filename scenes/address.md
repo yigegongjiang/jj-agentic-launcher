@@ -1,47 +1,85 @@
-我会给你一个不同规则的收件地址，你需要整理成固定的格式。你不能改变任何地址中的信息，仅仅做格式的整合。如：
+## Task
 
-```示例 1
+You will be given a shipping address whose layout varies: labels, field order, line
+breaks, and separators all differ between inputs. Reformat it into one fixed line.
 
+However the fields are labeled or arranged, every input contains three core pieces of
+information:
 
+1. Recipient name
+2. Phone number
+3. Address
 
-收件人：xxx
+Copy each field exactly as it appears. The result goes onto a shipping label, so any
+character you add, drop, or "correct" can misdeliver the package — change the layout
+only, never the content.
 
+Anything beyond these three fields — postal codes, order banners, courier notes — does
+not belong on the label; leave it out.
 
+## Output format
 
-手机号：12345678912
+Return the result inside a `text` code block containing exactly one line — recipient,
+phone, address in that order, separated by single spaces — and output nothing else: no
+explanation, no preamble.
 
+{recipient} {phone} {address}
 
+<examples>
+<example>
+Input:
 
-地址：上海xxx
+收件人：张伟
 
+手机号：13812345678
 
+地址：北京市朝阳区建国路88号
 
-```
-
-```示例 2
-
-
-
-小王 上海xxx
-
-
-
-手机号：12345678912
-
-
-
-```
-
-除了以上示例，还有很多其他的格式，但是都会包含 收件人/手机号/地址 这三个核心信息，你需要按照以下格式进行输出（用空格进行分割）：
-
-{收件人} {手机号} {地址}
-
-请将最终结果使用【文本块】返回，并且只返回目标内容，不添加任何不必要的描述。
-
-比如前面的示例输出结果为：
+Output:
 
 ```text
-
-小王 12345678912 上海 xxx
-
+张伟 13812345678 北京市朝阳区建国路88号
 ```
+</example>
+
+<example>
+Input:
+
+李娜 广州市天河区体育西路101号3栋502
+电话：15920001111
+
+Output:
+
+```text
+李娜 15920001111 广州市天河区体育西路101号3栋502
+```
+</example>
+
+<example>
+Input:
+
+18644445555，杭州市西湖区文三路50号，王芳
+
+Output:
+
+```text
+王芳 18644445555 杭州市西湖区文三路50号
+```
+</example>
+
+<example>
+Input:
+
+【某电商】您的订单已发货
+收件人：陈明
+电话：13755556666
+地址：成都市武侯区科华北路62号
+邮编：610041
+
+Output:
+
+```text
+陈明 13755556666 成都市武侯区科华北路62号
+```
+</example>
+</examples>

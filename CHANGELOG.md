@@ -11,6 +11,13 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.2.1] - 2026-07-28
+
+### Changed
+
+- 内置 scene prompt 全面重写 (`address` / `ai-expert` / `code-expert` / `it-expert` / `default`): 英文指令 + 示例驱动, 输出更稳定。
+- 已落盘的 `~/.config/jj-agentic-launcher/scenes/*.md` 不会被自动覆盖, 需手动同步新版内容。
+
 ## [1.2.0] - 2026-07-28
 
 ### Changed
@@ -188,6 +195,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.0.0...v1.0.1
