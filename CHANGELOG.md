@@ -11,6 +11,19 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.3.0] - 2026-07-29
+
+### Added
+
+- 默认 scene 可动态配置: `config.json` → `scenes.default` 支持别名 (`it`) / scene 文件名 (`it-expert`) / `.` 前缀改默认引擎为 Codex (`.it`), 改完即生效。
+- scene 参数全面可省略: 裸命令进默认 scene REPL; `-p 'prompt'` / `--loop N 'prompt'` 单参数即 prompt (旧版报错); 空 token `''` = 省略; 裸 `.` = 默认 scene 强制 Codex。
+- 单参数不匹配任何 scene 时当 prompt 跑, stderr `[info]` 提示实际用的 scene (scene 名打错立刻可见); 两参数时第一个仍必须是 scene。
+- `help` 展示当前生效的默认 scene + 引擎。
+
+### Fixed
+
+- `scenes.default` 此前只影响裸命令的交互模式, 且只认 scene 文件名 (写别名会启动失败); 现全入口生效, 值非法则 `[warn]` 回退内置 `default` 而非阻断。
+
 ## [1.2.1] - 2026-07-28
 
 ### Changed
@@ -195,6 +208,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.0.1...v1.1.0

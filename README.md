@@ -31,9 +31,33 @@ jj-agentic-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继�
 ```
 
 - 默认引擎 Claude Code: `jj-agentic-launcher d`. 前缀 `.` 走 Codex: `jj-agentic-launcher .d`.
-- 无 scene → 用 `scenes.default` (config).
 - 内置 scene: `default` / `ai-expert` / `it-expert` / `code-expert` / `address`.
 - 别名: `d`→`default`, `ai`→`ai-expert`, `it`→`it-expert`, `code`→`code-expert`.
+- scene 参数可省略 → 走 `scenes.default`, 见 [默认 scene](#默认-scene).
+
+### 默认 scene
+
+`config.json` → `scenes.default` = 一个 scene token, 语义与命令行参数完全一致: 别名 (`it`) / scene 文件名 (`it-expert`) / `.` 前缀改默认引擎为 Codex (`.it`). 改完立即生效, 无需重装.
+
+```json
+{ "scenes": { "default": "it", "aliases": { "it": "it-expert" } } }
+```
+
+省略 scene 的全部形态 (以 `default: "it"` 为例):
+
+```bash
+jj-agentic-launcher                     # REPL, it-expert + Claude
+jj-agentic-launcher 'prompt'            # 单参数且不是已知 scene → 当 prompt, it-expert
+jj-agentic-launcher -p 'prompt'         # -p / --loop 已隐含 prompt, 单参数必为 prompt
+jj-agentic-launcher --loop 3 'prompt'
+jj-agentic-launcher '' 'prompt'         # 空 token = 省略
+jj-agentic-launcher . 'prompt'          # 裸 . = 默认 scene 强制走 Codex
+```
+
+- 两参数时第一个 MUST 是 scene: 未知名字直接报错, NEVER 当 prompt.
+- 单参数解析顺序 scene 优先: `jj-agentic-launcher it` = 进 it-expert REPL, 不是跑 prompt "it"; 落到 prompt 分支时 stderr 打 `[info]` 说明 (scene 名打错也能立刻看见).
+- `scenes.default` 值为空 / 未知 → `[warn]` + 回退内置 `default`, 不阻断启动.
+- `jj-agentic-launcher help` 顶部展示当前生效的默认 scene + 引擎.
 
 ### 前置命令 `--pre`
 
@@ -170,7 +194,7 @@ curl http://127.0.0.1:53811/handoff   # 返回 mode + iteration + history JSON
 首次运行自动初始化 `~/.config/jj-agentic-launcher/`:
 
 ```
-config.json    # 引擎参数 (claude/codex args + interactive/print/stream 分模式覆写) + scene 别名
+config.json    # 引擎参数 (claude/codex args + interactive/print/stream 分模式覆写) + scene 别名 + 默认 scene
 scenes/*.md    # 自定义 scene 文件 (首次运行内置 scene 落盘)
 ```
 

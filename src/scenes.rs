@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
+use std::sync::OnceLock;
 
 use crate::config::{
-    get_config_dir, get_user_scene_aliases, is_initialized, load_user_scenes,
+    get_config_dir, get_default_scene_token, get_user_scene_aliases, is_initialized,
+    load_user_scenes,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -33,6 +35,11 @@ const BUILTIN_ALIASES: &[(&str, &str)] = &[
     ("it-expert", "it-expert"),
 ];
 
+// Last-resort scene id when `scenes.default` is missing or unusable. A broken
+// config value must never make the launcher unusable.
+const FALLBACK_SCENE_ID: &str = "default";
+
+#[derive(Clone)]
 pub struct ResolvedScene {
     pub engine: Engine,
     pub scene_id: String,
@@ -52,51 +59,98 @@ fn builtin_alias(key: &str) -> Option<&'static str> {
         .map(|(_, target)| *target)
 }
 
-pub fn resolve_scene_token(token: Option<&str>) -> Option<ResolvedScene> {
-    let token = token?;
-    if token.is_empty() {
-        return None;
+/// `.` prefix selects Codex; anything else runs on Claude Code.
+fn split_engine_prefix(token: &str) -> (Engine, &str) {
+    match token.strip_prefix('.') {
+        Some(rest) => (Engine::Codex, rest),
+        None => (Engine::Claude, token),
     }
+}
 
-    let engine = if token.starts_with('.') {
-        Engine::Codex
-    } else {
-        Engine::Claude
-    };
-    let raw_scene = if let Engine::Codex = engine {
-        &token[1..]
-    } else {
-        token
-    };
-    let scene_key = if raw_scene.is_empty() { "d" } else { raw_scene };
-
+/// Map a non-empty scene key (no engine prefix) to a scene id.
+fn resolve_scene_id(scene_key: &str) -> Option<String> {
     // 1. config aliases (primary after init)
     if let Some(target) = get_user_scene_aliases().get(scene_key) {
-        return Some(ResolvedScene {
-            engine,
-            scene_id: target.clone(),
-        });
+        return Some(target.clone());
     }
 
     // 2. config scene files
     if load_user_scenes().contains_key(scene_key) {
-        return Some(ResolvedScene {
-            engine,
-            scene_id: scene_key.to_string(),
-        });
+        return Some(scene_key.to_string());
     }
 
     // 3. built-in fallback (only when not yet initialized)
     if !is_initialized() {
         if let Some(builtin_id) = builtin_alias(scene_key) {
-            return Some(ResolvedScene {
-                engine,
-                scene_id: builtin_id.to_string(),
-            });
+            return Some(builtin_id.to_string());
         }
     }
 
     None
+}
+
+/// The configured default scene (`scenes.default` in config.json), used whenever
+/// the scene argument is omitted. Its value is a scene token in the same form as
+/// the CLI argument: alias (`it`), scene file name (`it-expert`), or a `.` prefix
+/// to make Codex the default engine (`.it`).
+///
+/// Resolved once per process. An empty / unknown value warns and falls back to
+/// the built-in `default` scene instead of failing the launch.
+pub fn default_scene() -> &'static ResolvedScene {
+    static DEFAULT: OnceLock<ResolvedScene> = OnceLock::new();
+    DEFAULT.get_or_init(|| {
+        let token = get_default_scene_token();
+        let token = token.trim();
+        let (engine, scene_key) = split_engine_prefix(token);
+
+        if scene_key.is_empty() {
+            if !token.is_empty() {
+                eprintln!(
+                    "[warn] scenes.default = \"{token}\" names no scene; using \"{FALLBACK_SCENE_ID}\"."
+                );
+            }
+            return ResolvedScene {
+                engine,
+                scene_id: FALLBACK_SCENE_ID.to_string(),
+            };
+        }
+
+        match resolve_scene_id(scene_key) {
+            Some(scene_id) => ResolvedScene { engine, scene_id },
+            None => {
+                eprintln!(
+                    "[warn] scenes.default = \"{token}\" is not a known scene or alias; using \"{FALLBACK_SCENE_ID}\"."
+                );
+                ResolvedScene {
+                    engine,
+                    scene_id: FALLBACK_SCENE_ID.to_string(),
+                }
+            }
+        }
+    })
+}
+
+/// Resolve a CLI scene token. `None` / `""` mean "omitted" — engine and scene
+/// both come from [`default_scene`]. A bare `.` pins Codex while keeping the
+/// default scene.
+pub fn resolve_scene_token(token: Option<&str>) -> Option<ResolvedScene> {
+    let Some(token) = token else {
+        return Some(default_scene().clone());
+    };
+    let token = token.trim();
+    if token.is_empty() {
+        return Some(default_scene().clone());
+    }
+
+    let (engine, scene_key) = split_engine_prefix(token);
+    if scene_key.is_empty() {
+        return Some(ResolvedScene {
+            engine,
+            scene_id: default_scene().scene_id.clone(),
+        });
+    }
+
+    resolve_scene_id(scene_key).map(|scene_id| ResolvedScene { engine, scene_id })
 }
 
 pub fn get_scene_text(scene_id: &str) -> Result<String, String> {

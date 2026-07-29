@@ -1,5 +1,4 @@
-use crate::config::get_default_scene_id;
-use crate::scenes::{resolve_scene_token, Engine};
+use crate::scenes::{default_scene, resolve_scene_token, Engine, ResolvedScene};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Mode {
@@ -68,6 +67,17 @@ fn split_prompt(prompt: &str) -> Vec<String> {
         .collect()
 }
 
+/// Clip a positional argument for a one-line stderr notice (prompts can be huge).
+fn truncate_for_log(text: &str) -> String {
+    let one_line = text.replace('\n', " ");
+    let clipped: String = one_line.chars().take(40).collect();
+    if one_line.chars().count() > 40 {
+        format!("{clipped}…")
+    } else {
+        clipped
+    }
+}
+
 pub fn parse_invocation(
     args: Vec<String>,
     want_print: bool,
@@ -87,45 +97,49 @@ pub fn parse_invocation(
         ));
     }
 
-    let is_loopish = |l: &LoopSpec| !matches!(l, LoopSpec::Fixed(1));
+    // Flags that only make sense with a prompt. Their presence disambiguates a
+    // lone positional argument: it can only be the prompt, never a scene.
+    let needs_prompt = want_print || !matches!(loop_spec, LoopSpec::Fixed(1));
 
-    // 0 args -> REPL with default scene
-    if args.is_empty() {
-        if want_print {
-            return Err(AppError::Usage("`-p` requires a prompt argument.".to_string()));
+    // The scene argument is optional everywhere — omitted, empty, or a bare `.`
+    // all fall back to `scenes.default` (see scenes::default_scene).
+    let (resolved, prompt): (ResolvedScene, Option<String>) = match args.len() {
+        0 => {
+            if want_print {
+                return Err(AppError::Usage("`-p` requires a prompt argument.".to_string()));
+            }
+            if needs_prompt {
+                return Err(AppError::Usage(
+                    "`--loop` requires a prompt argument (interactive mode is not loopable)."
+                        .to_string(),
+                ));
+            }
+            (default_scene().clone(), None)
         }
-        if is_loopish(&loop_spec) {
-            return Err(AppError::Usage(
-                "`--loop` requires a prompt argument (interactive mode is not loopable)."
-                    .to_string(),
-            ));
+        1 if needs_prompt => (default_scene().clone(), Some(args[0].clone())),
+        1 => match resolve_scene_token(Some(&args[0])) {
+            // A known scene with no prompt -> REPL.
+            Some(r) => (r, None),
+            // Not a scene -> it is the prompt, run under the default scene. Say
+            // so on stderr: a mistyped scene name lands here too.
+            None => {
+                let d = default_scene();
+                eprintln!(
+                    "[info] no scene named \"{}\" — treating it as the prompt, scene \"{}\".",
+                    truncate_for_log(&args[0]),
+                    d.scene_id
+                );
+                (d.clone(), Some(args[0].clone()))
+            }
+        },
+        _ => {
+            let r = resolve_scene_token(Some(&args[0]))
+                .ok_or_else(|| AppError::Usage(format!("Unknown scene: \"{}\".", args[0])))?;
+            (r, Some(args[1].clone()))
         }
-        return Ok(Invocation {
-            engine: Engine::Claude,
-            mode: Mode::Interactive,
-            scene_id: get_default_scene_id(),
-            user_text: None,
-            user_texts: None,
-            loop_spec: LoopSpec::Fixed(1),
-            passthrough_args,
-            pre_cmd,
-        });
-    }
+    };
 
-    let resolved = resolve_scene_token(Some(&args[0]))
-        .ok_or_else(|| AppError::Usage(format!("Unknown scene: \"{}\".", args[0])))?;
-
-    // 1 arg -> REPL with given scene
-    if args.len() == 1 {
-        if want_print {
-            return Err(AppError::Usage("`-p` requires a prompt argument.".to_string()));
-        }
-        if is_loopish(&loop_spec) {
-            return Err(AppError::Usage(
-                "`--loop` requires a prompt argument (interactive mode is not loopable)."
-                    .to_string(),
-            ));
-        }
+    let Some(prompt) = prompt else {
         return Ok(Invocation {
             engine: resolved.engine,
             mode: Mode::Interactive,
@@ -136,15 +150,13 @@ pub fn parse_invocation(
             passthrough_args,
             pre_cmd,
         });
-    }
+    };
 
-    // 2 args -> scene + prompt, single-shot or loop
-    let prompt = &args[1];
     if prompt.is_empty() {
         return Err(AppError::Usage("Empty prompt.".to_string()));
     }
 
-    let segments = split_prompt(prompt);
+    let segments = split_prompt(&prompt);
     let is_split = segments.len() > 1;
 
     if is_split {

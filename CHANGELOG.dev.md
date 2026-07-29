@@ -7,6 +7,24 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.3.0] - 2026-07-29
+
+### Added
+
+- 默认 scene 可动态配置: `config.json` → `scenes.default` 支持别名 (`it`) / scene 文件名 (`it-expert`) / `.` 前缀改默认引擎为 Codex (`.it`), 改完即生效。
+  - `scenes.rs` 新增 `default_scene()` (`OnceLock` 缓存, 进程内解析一次) + `split_engine_prefix()` / `resolve_scene_id()` 拆分; `resolve_scene_token()` 收 `None` / `""` / 裸 `.` 三种省略形态。
+  - 默认 token 解析不复用 `resolve_scene_token`, 单向调用避免「空 → 默认 → 空」递归; `config.rs` `get_default_scene_id` → `get_default_scene_token`。
+- scene 参数全面可省略: 裸命令进默认 scene REPL; `-p 'prompt'` / `--loop N 'prompt'` 单参数即 prompt (旧版报错); 空 token `''` = 省略; 裸 `.` = 默认 scene 强制 Codex。
+  - `parse.rs` 0/1/2 args 三分支重写为一次 `(ResolvedScene, Option<prompt>)` 解析; `needs_prompt = want_print || loop != Fixed(1)` 作为「单参数必为 prompt」的判据。
+- 单参数不匹配任何 scene 时当 prompt 跑, stderr `[info]` 提示实际用的 scene (scene 名打错立刻可见); 两参数时第一个仍必须是 scene。
+  - `truncate_for_log()` 把参数压成单行 ≤40 字符 (按 `chars` 截断, 不切 UTF-8 边界)。
+- `help` 展示当前生效的默认 scene + 引擎。
+
+### Fixed
+
+- `scenes.default` 此前只影响裸命令的交互模式, 且只认 scene 文件名 (写别名会启动失败); 现全入口生效, 值非法则 `[warn]` 回退内置 `default` 而非阻断。
+  - 旧 0-args 分支硬编码 `Engine::Claude` + 直接把 config 值当 `scene_id`; 旧 `resolve_scene_token` 里裸 `.` 硬编码回退别名 `"d"` (删掉该别名即失效) 一并移除。
+
 ## [1.2.1] - 2026-07-28
 
 ### Changed
@@ -229,6 +247,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
 [0.12.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v0.11.1...v0.12.0

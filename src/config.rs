@@ -151,7 +151,9 @@ pub fn get_configured_args(engine: Engine, mode: Mode) -> Vec<String> {
     out
 }
 
-pub fn get_default_scene_id() -> String {
+/// Raw `scenes.default` value — a scene *token* (alias / scene file name /
+/// optional `.` prefix for Codex), resolved by `scenes::default_scene`.
+pub fn get_default_scene_token() -> String {
     config()
         .scenes
         .as_ref()

@@ -1,6 +1,6 @@
 use crate::config::get_config_dir;
 use crate::parse::DEFAULT_MAX_ITER;
-use crate::scenes::list_all_scene_names;
+use crate::scenes::{default_scene, list_all_scene_names, Engine};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -13,6 +13,12 @@ pub fn build_help_text() -> String {
     let scenes = list_all_scene_names().join(", ");
     let config_dir = get_config_dir();
     let config_dir = config_dir.display();
+    let dflt = default_scene();
+    let dflt_engine = match dflt.engine {
+        Engine::Claude => "Claude Code",
+        Engine::Codex => "Codex",
+    };
+    let dflt = format!("{} ({dflt_engine})", dflt.scene_id);
 
     format!(
         "{NAME} {VERSION} — Launch Claude Code or Codex with shared scene prompts
@@ -61,7 +67,19 @@ Passthrough to claude/codex:
 
 Scenes:
   {scenes}
-  Default is Claude Code, use . prefix for Codex, e.g. .d / .code
+  Claude Code by default, use . prefix for Codex, e.g. .d / .code
+
+Default scene:
+  {dflt}
+  Set by `scenes.default` in config.json — an alias (it), a scene file name
+  (it-expert), or a . prefix to default to Codex (.it). Editable any time.
+  The scene argument is optional everywhere; each of these uses the default:
+    {NAME}                omitted entirely (REPL)
+    {NAME} 'prompt'       lone argument that is not a known scene
+    {NAME} -p 'prompt'    -p / --loop already imply a prompt
+    {NAME} '' 'prompt'    empty token
+    {NAME} . 'prompt'     bare . -> default scene, forced onto Codex
+  Two arguments -> the first MUST be a scene (unknown name = error, not a prompt).
 
 Meta commands:
   help, --help, -h            Show this help message
