@@ -7,6 +7,17 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.3.1] - 2026-08-04
+
+### Changed
+
+- `ai-expert` scene prompt 重写: 准确性约束前置 (数字 / 来源 / API 字符串未经检索或确知则不给, 推断须标注可信级别, 能力与定价锚定版本日期)。
+  - `scenes/ai-expert.md` 与上游 `jj-prompts/user-prompts/ai-expert.md` 逐字对齐 (单一信源, 其余 4 个 scene 已一致)。
+- `ai-expert` 输出不再套固定模板 (原五步流程 + RPP 框架), 由回答自选形式, 覆盖面补齐后训练 / 推理经济性 / MCP / evals。
+  - 段落结构 `Expertise` / `Rules` / `Workflow` → `Accuracy first` / `Form`; 删除强制 `[Author, Year]` 引用格式要求。
+- 已落盘的 `~/.config/jj-agentic-launcher/scenes/ai-expert.md` 不会被自动覆盖, 需手动同步新版内容。
+  - `init.rs` 仅在 config.json 缺失时落盘, 设计如此, 不加覆盖逻辑。
+
 ## [1.3.0] - 2026-07-29
 
 ### Added
@@ -247,6 +258,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.1.0...v1.2.0
