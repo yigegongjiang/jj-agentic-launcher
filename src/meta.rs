@@ -17,11 +17,12 @@ pub fn build_help_text() -> String {
     let dflt_engine = match dflt.engine {
         Engine::Claude => "Claude Code",
         Engine::Codex => "Codex",
+        Engine::Agy => "agy",
     };
     let dflt = format!("{} ({dflt_engine})", dflt.scene_id);
 
     format!(
-        "{NAME} {VERSION} — Launch Claude Code or Codex with shared scene prompts
+        "{NAME} {VERSION} — Launch Claude Code / Codex / agy with shared scene prompts
 
 Usage:
   {NAME} [scene]                         Interactive REPL
@@ -59,26 +60,31 @@ Sequential prompts:
     {NAME} d 'step 1 <<>> step 2 <<>> step 3'
   Cannot combine with --loop (each segment runs exactly once).
 
-Passthrough to claude/codex:
+Passthrough to claude/codex/agy:
   Everything after `--` is forwarded verbatim to the underlying engine,
   appended after scene injection and before the prompt (no validation):
     {NAME} code 'fix the bug' -- --model opus --add-dir ../shared
     {NAME} .d -- --search          (Codex flag, REPL with no prompt)
+    {NAME} ,d 'hi' -- --model gemini-3.7-flash-high     (agy flag)
 
 Scenes:
   {scenes}
-  Claude Code by default, use . prefix for Codex, e.g. .d / .code
+  Claude Code by default; . prefix for Codex, , prefix for agy (Antigravity):
+    {NAME} d / .d / ,d
+  agy has no system-prompt flag, so its scene is sent as prompt text
+  (wrapped in <system_instructions>); a REPL gets it as the priming turn.
 
 Default scene:
   {dflt}
   Set by `scenes.default` in config.json — an alias (it), a scene file name
-  (it-expert), or a . prefix to default to Codex (.it). Editable any time.
+  (it-expert), or an engine prefix to change the default engine (.it / ,it).
+  Editable any time.
   The scene argument is optional everywhere; each of these uses the default:
     {NAME}                omitted entirely (REPL)
     {NAME} 'prompt'       lone argument that is not a known scene
     {NAME} -p 'prompt'    -p / --loop already imply a prompt
     {NAME} '' 'prompt'    empty token
-    {NAME} . 'prompt'     bare . -> default scene, forced onto Codex
+    {NAME} . 'prompt'     bare . -> default scene, forced onto Codex ( , -> agy)
   Two arguments -> the first MUST be a scene (unknown name = error, not a prompt).
 
 Meta commands:

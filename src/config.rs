@@ -44,11 +44,14 @@ pub struct UserConfig {
     #[serde(default)]
     pub codex: Option<EngineConfig>,
     #[serde(default)]
+    pub agy: Option<EngineConfig>,
+    #[serde(default)]
     pub scenes: Option<ScenesConfig>,
 }
 
-/// Seed config written verbatim on first run. Byte-identical to what the former
-/// TS build produced via `JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n"`.
+/// Seed config written verbatim on first run, and the fallback for any engine
+/// section a pre-existing config.json does not have yet (see
+/// [`get_configured_args`]).
 pub const DEFAULT_CONFIG_JSON: &str = r#"{
   "claude": {
     "args": [
@@ -78,6 +81,20 @@ pub const DEFAULT_CONFIG_JSON: &str = r#"{
     "print": [],
     "stream": [
       "--json"
+    ]
+  },
+  "agy": {
+    "args": [
+      "--dangerously-skip-permissions"
+    ],
+    "interactive": [],
+    "print": [
+      "--print-timeout",
+      "24h"
+    ],
+    "stream": [
+      "--output-format",
+      "stream-json"
     ]
   },
   "scenes": {
@@ -116,6 +133,20 @@ fn load_config_uncached() -> UserConfig {
     }
 }
 
+/// Seed defaults, parsed from [`DEFAULT_CONFIG_JSON`] on first use.
+fn seed_config() -> &'static UserConfig {
+    static SEED: OnceLock<UserConfig> = OnceLock::new();
+    SEED.get_or_init(|| serde_json::from_str(DEFAULT_CONFIG_JSON).unwrap_or_default())
+}
+
+fn engine_section(cfg: &UserConfig, engine: Engine) -> Option<&EngineConfig> {
+    match engine {
+        Engine::Claude => cfg.claude.as_ref(),
+        Engine::Codex => cfg.codex.as_ref(),
+        Engine::Agy => cfg.agy.as_ref(),
+    }
+}
+
 /// Whether the config dir has been initialized (config.json present). Uncached
 /// so it reflects on-disk state before and after `ensure_initialized`.
 pub fn is_initialized() -> bool {
@@ -126,13 +157,15 @@ pub fn is_initialized() -> bool {
 ///   interactive -> args + interactive
 ///   print       -> args + print
 ///   stream      -> args + print + stream
+///
+/// A config.json with no section at all for this engine — every config written
+/// before the engine was supported — falls back to the seed defaults: launching
+/// with zero arguments would silently drop the mode flags and give a REPL where
+/// a single-shot was asked for. A present-but-empty section (`"agy": {}`) still
+/// means "no arguments".
 pub fn get_configured_args(engine: Engine, mode: Mode) -> Vec<String> {
-    let cfg = config();
-    let engine_config = match engine {
-        Engine::Claude => cfg.claude.as_ref(),
-        Engine::Codex => cfg.codex.as_ref(),
-    };
-    let Some(ec) = engine_config else {
+    let Some(ec) = engine_section(config(), engine).or_else(|| engine_section(seed_config(), engine))
+    else {
         return Vec::new();
     };
 

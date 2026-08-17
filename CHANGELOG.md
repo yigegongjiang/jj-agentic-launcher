@@ -11,6 +11,22 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.4.0] - 2026-08-17
+
+### Added
+
+- 新增第三个引擎 agy (Google Antigravity CLI): scene token 加前缀 `,` 即走 agy (`,d` / `,it`), 与 Claude Code (无前缀) / Codex (`.`) 完全同一套用法。
+- `--loop relay` / `--loop refine` / `<<>>` 分段 / `--pre` / `--` 透传在 agy 上一并可用; `scenes.default` 支持 `,it` 把 agy 设为默认引擎。
+- agy 没有 system prompt 参数, scene 以 `<system_instructions>` 包裹进 prompt 注入; REPL 下作为首轮消息注入 (agent 只回一行「就位」再等指令)。
+
+### Changed
+
+- 流式渲染 (默认模式) 下 agy 自身按字节切分输出增量, CJK 字符跨切片会被它替换成 `U+FFFD`; 需要完整文本时用 `-p`。
+
+### Fixed
+
+- config.json 中整段缺失的引擎不再按「零参数」启动 (会误开 REPL 而非单次执行), 改用内置默认参数 — 老版本写的 config 不改也能直接用 agy。
+
 ## [1.3.1] - 2026-08-04
 
 ### Changed
@@ -216,6 +232,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.0...v1.2.1

@@ -1,4 +1,5 @@
 mod config;
+mod format_agy;
 mod format_claude;
 mod format_codex;
 mod format_utils;

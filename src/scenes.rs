@@ -10,6 +10,8 @@ use crate::config::{
 pub enum Engine {
     Claude,
     Codex,
+    /// Antigravity CLI (`agy`, Google Gemini).
+    Agy,
 }
 
 // Built-in scene texts, embedded at compile time. Used as seed data by init and
@@ -59,11 +61,17 @@ fn builtin_alias(key: &str) -> Option<&'static str> {
         .map(|(_, target)| *target)
 }
 
-/// `.` prefix selects Codex; anything else runs on Claude Code.
+/// Engine prefix on a scene token: `.` selects Codex, `,` selects agy
+/// (Antigravity CLI); anything else runs on Claude Code. Both prefixes are
+/// single ASCII punctuation with no meaning to sh/bash/zsh, so they never need
+/// quoting on the command line.
 fn split_engine_prefix(token: &str) -> (Engine, &str) {
-    match token.strip_prefix('.') {
-        Some(rest) => (Engine::Codex, rest),
-        None => (Engine::Claude, token),
+    if let Some(rest) = token.strip_prefix('.') {
+        (Engine::Codex, rest)
+    } else if let Some(rest) = token.strip_prefix(',') {
+        (Engine::Agy, rest)
+    } else {
+        (Engine::Claude, token)
     }
 }
 

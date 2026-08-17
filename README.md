@@ -8,7 +8,7 @@
 
 # jj-agentic-launcher
 
-启动器: 把共享 scene prompt 注入 Claude Code / Codex. Rust 单文件可执行 (仅 macOS). 打 tag → GitHub Actions 自动构建并发布 release; 用户用 `install.sh` 一键安装, 或通过内置 `update` 子命令自更新.
+启动器: 把共享 scene prompt 注入 Claude Code / Codex / agy (Antigravity CLI). Rust 单文件可执行 (仅 macOS). 打 tag → GitHub Actions 自动构建并发布 release; 用户用 `install.sh` 一键安装, 或通过内置 `update` 子命令自更新.
 
 ## 安装
 
@@ -16,7 +16,7 @@
 curl -fsSL https://raw.githubusercontent.com/yigegongjiang/jj-agentic-launcher/main/scripts/install.sh | bash
 ```
 
-依赖: `claude`、`codex` CLI 需另行安装并在 `PATH` 中. 默认装到 `$HOME/.local/bin`. 可用 `VERSION` / `INSTALL_DIR` / `REPO` 覆写.
+依赖: `claude` / `codex` / `agy` CLI 按需另行安装并在 `PATH` 中 (只用哪个装哪个). 默认装到 `$HOME/.local/bin`. 可用 `VERSION` / `INSTALL_DIR` / `REPO` 覆写.
 
 ## 用法
 
@@ -30,14 +30,30 @@ jj-agentic-launcher --loop refine [scene] 'prompt'   # 打磨式: 每轮零上�
 jj-agentic-launcher --pre '<cmd>' [scene] 'prompt'   # 先跑 <cmd>, 引擎继承其 shell 状态
 ```
 
-- 默认引擎 Claude Code: `jj-agentic-launcher d`. 前缀 `.` 走 Codex: `jj-agentic-launcher .d`.
+- 引擎前缀: 无前缀 = Claude Code, `.` = Codex, `,` = agy — `d` / `.d` / `,d`. 见 [引擎](#引擎).
 - 内置 scene: `default` / `ai-expert` / `it-expert` / `code-expert` / `address`.
 - 别名: `d`→`default`, `ai`→`ai-expert`, `it`→`it-expert`, `code`→`code-expert`.
 - scene 参数可省略 → 走 `scenes.default`, 见 [默认 scene](#默认-scene).
 
+### 引擎
+
+<!-- prettier-ignore -->
+| 引擎 | 前缀 | scene 注入方式 |
+| --- | --- | --- |
+| Claude Code | 无 | `--append-system-prompt` |
+| Codex | `.` | `-c developer_instructions=` |
+| agy | `,` | prompt 内 `<system_instructions>` 包裹 |
+
+agy (Antigravity CLI) 没有任何 system prompt 参数 (`agy --help` / [headless docs](https://antigravity.google/docs/cli/headless)), 故 scene 只能走 prompt 文本:
+
+- 单次执行: `<system_instructions>scene</system_instructions>` + 原始 prompt, 一并作为 `-p` 的值.
+- REPL (无 prompt): scene 作为 `-i` 首轮消息注入 (要求 agent 只回一行「就位」再等指令) — 否则无处绑定 scene.
+- 流式渲染下 agy 的 `text_delta` 按字节切片, CJK 字符跨切片会被它自己替换成 `U+FFFD`; 要完整文本用 `-p` (raw text, 无此问题).
+- `--loop relay` / `--loop refine` / `<<>>` / `--pre` 全部照常可用.
+
 ### 默认 scene
 
-`config.json` → `scenes.default` = 一个 scene token, 语义与命令行参数完全一致: 别名 (`it`) / scene 文件名 (`it-expert`) / `.` 前缀改默认引擎为 Codex (`.it`). 改完立即生效, 无需重装.
+`config.json` → `scenes.default` = 一个 scene token, 语义与命令行参数完全一致: 别名 (`it`) / scene 文件名 (`it-expert`) / 引擎前缀改默认引擎 (`.it` = Codex, `,it` = agy). 改完立即生效, 无需重装.
 
 ```json
 { "scenes": { "default": "it", "aliases": { "it": "it-expert" } } }
@@ -51,7 +67,7 @@ jj-agentic-launcher 'prompt'            # 单参数且不是已知 scene → 当
 jj-agentic-launcher -p 'prompt'         # -p / --loop 已隐含 prompt, 单参数必为 prompt
 jj-agentic-launcher --loop 3 'prompt'
 jj-agentic-launcher '' 'prompt'         # 空 token = 省略
-jj-agentic-launcher . 'prompt'          # 裸 . = 默认 scene 强制走 Codex
+jj-agentic-launcher . 'prompt'          # 裸 . = 默认 scene 强制走 Codex (裸 , = agy)
 ```
 
 - 两参数时第一个 MUST 是 scene: 未知名字直接报错, NEVER 当 prompt.
@@ -194,11 +210,13 @@ curl http://127.0.0.1:53811/handoff   # 返回 mode + iteration + history JSON
 首次运行自动初始化 `~/.config/jj-agentic-launcher/`:
 
 ```
-config.json    # 引擎参数 (claude/codex args + interactive/print/stream 分模式覆写) + scene 别名 + 默认 scene
+config.json    # 引擎参数 (claude/codex/agy args + interactive/print/stream 分模式覆写) + scene 别名 + 默认 scene
 scenes/*.md    # 自定义 scene 文件 (首次运行内置 scene 落盘)
 ```
 
-新增 scene: `scenes/foo.md` + `config.json` → `scenes.aliases` 加 `"f": "foo"` → `jj-agentic-launcher foo` / `f` / `.f` 均可用.
+- 新增 scene: `scenes/foo.md` + `config.json` → `scenes.aliases` 加 `"f": "foo"` → `jj-agentic-launcher foo` / `f` / `.f` / `,f` 均可用.
+- config.json 里整段缺失的引擎 (如老版本写的文件没有 `agy` 段) 用内置默认参数; 写成 `"agy": {}` 才是「不带参数」.
+- 引擎自身的模型 / 推理档位不写死在本项目: 需要就往对应引擎段的 `args` 里加 (如 agy 的 `--model` / `--effort`), 或命令行 `-- --model ...` 透传.
 
 ## 自更新 / 卸载
 
@@ -209,7 +227,7 @@ jj-agentic-launcher uninstall   # 删除当前二进制
 
 ## 架构
 
-Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` (PATH), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2`.
+Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` / `agy` (PATH, 按需), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2`.
 
 ## 项目结构
 

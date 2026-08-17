@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use serde_json::Value;
 
 use crate::config::get_configured_args;
+use crate::format_agy::AgyStreamFormatter;
 use crate::format_claude::ClaudeStreamFormatter;
 use crate::format_codex::CodexStreamFormatter;
 use crate::parse::{Invocation, Mode};
@@ -13,6 +14,12 @@ use crate::scenes::{get_scene_text, Engine};
 
 const CLAUDE_BIN: &str = "claude";
 const CODEX_BIN: &str = "codex";
+const AGY_BIN: &str = "agy";
+
+/// Sent as the priming turn when `agy` is launched as a REPL: the scene has no
+/// prompt to ride along with, and `-i` is the only slot that can carry it.
+const AGY_REPL_PRIMER: &str =
+    "以上是本次会话的系统级设定, 全程生效. 现在只回一行「就位」, 然后等我的指令.";
 
 #[derive(Default)]
 pub struct RunOptions {
@@ -33,11 +40,13 @@ pub struct RunOutcome {
 enum FormatterKind {
     Claude,
     Codex,
+    Agy,
 }
 
 enum Fmt {
     Claude(ClaudeStreamFormatter),
     Codex(CodexStreamFormatter),
+    Agy(AgyStreamFormatter),
 }
 
 struct LaunchPlan {
@@ -59,14 +68,13 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
         scene_text.push_str(suffix);
     }
 
-    let is_claude = matches!(inv.engine, Engine::Claude);
     let config_args = get_configured_args(inv.engine, inv.mode);
 
     let formatter = if matches!(inv.mode, Mode::Stream) {
-        Some(if is_claude {
-            FormatterKind::Claude
-        } else {
-            FormatterKind::Codex
+        Some(match inv.engine {
+            Engine::Claude => FormatterKind::Claude,
+            Engine::Codex => FormatterKind::Codex,
+            Engine::Agy => FormatterKind::Agy,
         })
     } else {
         None
@@ -80,7 +88,11 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
 
     Ok(LaunchPlan {
         args,
-        binary: if is_claude { CLAUDE_BIN } else { CODEX_BIN },
+        binary: match inv.engine {
+            Engine::Claude => CLAUDE_BIN,
+            Engine::Codex => CODEX_BIN,
+            Engine::Agy => AGY_BIN,
+        },
         formatter,
         interactive: matches!(inv.mode, Mode::Interactive),
         pre_cmd: inv.pre_cmd.clone(),
@@ -93,8 +105,9 @@ fn build_final_args(
     scene_text: &str,
     user_text: Option<&str>,
 ) -> Vec<String> {
-    let is_claude = matches!(inv.engine, Engine::Claude);
-    let is_codex_noninteractive = !is_claude && !matches!(inv.mode, Mode::Interactive);
+    let interactive = matches!(inv.mode, Mode::Interactive);
+    let is_codex_noninteractive = matches!(inv.engine, Engine::Codex) && !interactive;
+    let user_text = user_text.filter(|s| !s.is_empty());
 
     let mut args: Vec<String> = Vec::new();
 
@@ -102,22 +115,27 @@ fn build_final_args(
         args.push("exec".to_string());
     }
 
-    if is_claude {
+    if matches!(inv.engine, Engine::Claude) {
         args.extend(sanitize_mcp_config(config_args, inv.pre_cmd.is_some()));
     } else {
         args.extend(config_args);
     }
 
     // Scene injection — structural binding, not user-configurable.
-    if is_claude {
-        args.push("--append-system-prompt".to_string());
-        args.push(scene_text.to_string());
-    } else {
-        args.push("-c".to_string());
-        args.push(format!(
-            "developer_instructions={}",
-            serde_json::to_string(scene_text).unwrap_or_else(|_| "\"\"".to_string())
-        ));
+    match inv.engine {
+        Engine::Claude => {
+            args.push("--append-system-prompt".to_string());
+            args.push(scene_text.to_string());
+        }
+        Engine::Codex => {
+            args.push("-c".to_string());
+            args.push(format!(
+                "developer_instructions={}",
+                serde_json::to_string(scene_text).unwrap_or_else(|_| "\"\"".to_string())
+            ));
+        }
+        // agy has no system-prompt flag at all, so the scene rides in the prompt.
+        Engine::Agy => {}
     }
 
     // User passthrough (tokens after `--`) — verbatim, after scene, before prompt.
@@ -125,7 +143,16 @@ fn build_final_args(
         args.extend(pt.iter().cloned());
     }
 
-    match user_text.filter(|s| !s.is_empty()) {
+    if matches!(inv.engine, Engine::Agy) {
+        // agy carries the prompt as the *value* of `-p` / `-i` (Go flag parsing),
+        // so the two must stay adjacent — that is why the flag is emitted here
+        // instead of living in config.json like the rest of the mode args.
+        args.push(if interactive { "-i" } else { "-p" }.to_string());
+        args.push(build_agy_prompt(scene_text, user_text));
+        return args;
+    }
+
+    match user_text {
         Some(ut) => args.push(ut.to_string()),
         None => {
             if is_codex_noninteractive {
@@ -135,6 +162,17 @@ fn build_final_args(
     }
 
     args
+}
+
+/// The agy prompt: scene text tagged as session-level setup, then the request
+/// verbatim. Claude gets `--append-system-prompt` and Codex
+/// `-c developer_instructions=…`; agy exposes no equivalent (verified against
+/// `agy --help` and antigravity.google/docs/cli/headless, 2026-08-17), so prompt
+/// text is the only channel the scene can reach the model through.
+fn build_agy_prompt(scene_text: &str, user_text: Option<&str>) -> String {
+    let scene = scene_text.trim_end();
+    let tail = user_text.unwrap_or(AGY_REPL_PRIMER);
+    format!("<system_instructions>\n{scene}\n</system_instructions>\n\n{tail}")
 }
 
 /// Drop non-existent `--mcp-config` file paths so a missing project `.mcp.json`
@@ -192,6 +230,7 @@ fn render_line(fmt: &mut Fmt, line: &str) -> Option<String> {
             let out = match fmt {
                 Fmt::Claude(f) => f.format(&v),
                 Fmt::Codex(f) => f.format(&v),
+                Fmt::Agy(f) => f.format(&v),
             };
             if out.is_empty() {
                 None
@@ -311,6 +350,7 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
     let mut fmt: Option<Fmt> = plan.formatter.map(|k| match k {
         FormatterKind::Claude => Fmt::Claude(ClaudeStreamFormatter::new()),
         FormatterKind::Codex => Fmt::Codex(CodexStreamFormatter::new()),
+        FormatterKind::Agy => Fmt::Agy(AgyStreamFormatter::new()),
     });
 
     let stdout_handle = io::stdout();
@@ -383,6 +423,70 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
         exit_code: status.code().unwrap_or(1),
         agent_text,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parse::LoopSpec;
+
+    fn inv(engine: Engine, mode: Mode, prompt: Option<&str>) -> Invocation {
+        Invocation {
+            engine,
+            mode,
+            scene_id: "default".to_string(),
+            user_text: prompt.map(String::from),
+            user_texts: None,
+            loop_spec: LoopSpec::Fixed(1),
+            passthrough_args: None,
+            pre_cmd: None,
+        }
+    }
+
+    #[test]
+    fn agy_folds_the_scene_into_the_prompt() {
+        let i = inv(Engine::Agy, Mode::Stream, Some("do it"));
+        let args = build_final_args(&i, vec!["--x".into()], "SCENE\n", Some("do it"));
+        assert_eq!(
+            args,
+            vec![
+                "--x".to_string(),
+                "-p".to_string(),
+                "<system_instructions>\nSCENE\n</system_instructions>\n\ndo it".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn agy_repl_sends_the_scene_as_the_priming_turn() {
+        let i = inv(Engine::Agy, Mode::Interactive, None);
+        let args = build_final_args(&i, vec![], "SCENE", None);
+        assert_eq!(args[0], "-i");
+        assert!(args[1].starts_with("<system_instructions>\nSCENE\n</system_instructions>"));
+        assert!(args[1].ends_with(AGY_REPL_PRIMER));
+    }
+
+    #[test]
+    fn agy_passthrough_stays_before_the_prompt_flag() {
+        let mut i = inv(Engine::Agy, Mode::Stream, Some("hi"));
+        i.passthrough_args = Some(vec!["--model".into(), "m".into()]);
+        let args = build_final_args(&i, vec![], "S", Some("hi"));
+        assert_eq!(args[..3], ["--model", "m", "-p"]);
+    }
+
+    #[test]
+    fn claude_and_codex_argv_is_unchanged() {
+        let c = inv(Engine::Claude, Mode::Stream, Some("hi"));
+        let args = build_final_args(&c, vec!["-p".into()], "S", Some("hi"));
+        assert_eq!(args, vec!["-p", "--append-system-prompt", "S", "hi"]);
+
+        let x = inv(Engine::Codex, Mode::Stream, Some("hi"));
+        let args = build_final_args(&x, vec!["--json".into()], "S", Some("hi"));
+        assert_eq!(
+            args,
+            vec!["exec", "--json", "-c", "developer_instructions=\"S\"", "hi"]
+        );
+    }
 }
 
 fn spawn_error_message(binary: &str, err: &io::Error) -> String {
