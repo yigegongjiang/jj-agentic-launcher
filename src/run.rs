@@ -84,7 +84,14 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
         .prompt_override
         .clone()
         .or_else(|| inv.user_text.clone());
-    let args = build_final_args(inv, config_args, &scene_text, user_text.as_deref());
+    let project_args = codex_project_args(inv);
+    let args = build_final_args(
+        inv,
+        config_args,
+        project_args,
+        &scene_text,
+        user_text.as_deref(),
+    );
 
     Ok(LaunchPlan {
         args,
@@ -99,9 +106,27 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
     })
 }
 
+/// Project `[[skills.config]]` forwarded to Codex (see `codex_project`). Under
+/// `--pre` the cwd is unknown until the pre command ran, so a placeholder is
+/// left for `shell::build_script` to resolve at exec time.
+fn codex_project_args(inv: &Invocation) -> Vec<String> {
+    if !matches!(inv.engine, Engine::Codex) {
+        return Vec::new();
+    }
+    if inv.pre_cmd.is_some() {
+        return vec![crate::shell::CODEX_SKILLS_DEFERRED.to_string()];
+    }
+    std::env::current_dir()
+        .ok()
+        .and_then(|cwd| crate::codex_project::skills_override(&cwd))
+        .map(|v| vec!["-c".to_string(), v])
+        .unwrap_or_default()
+}
+
 fn build_final_args(
     inv: &Invocation,
     config_args: Vec<String>,
+    project_args: Vec<String>,
     scene_text: &str,
     user_text: Option<&str>,
 ) -> Vec<String> {
@@ -120,6 +145,8 @@ fn build_final_args(
     } else {
         args.extend(config_args);
     }
+    // Before scene + passthrough, so a user's own `-- -c skills.config=...` wins.
+    args.extend(project_args);
 
     // Scene injection — structural binding, not user-configurable.
     match inv.engine {
@@ -308,6 +335,16 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
                 deferred.join(" ")
             );
         }
+        if plan
+            .args
+            .iter()
+            .any(|a| a == crate::shell::CODEX_SKILLS_DEFERRED)
+        {
+            eprintln!(
+                "[note] {} = project .codex/config.toml [[skills.config]], read after `--pre` in the resulting cwd.",
+                crate::shell::CODEX_SKILLS_DEFERRED
+            );
+        }
     }
 
     let program = spawn_program(&plan);
@@ -446,7 +483,7 @@ mod tests {
     #[test]
     fn agy_folds_the_scene_into_the_prompt() {
         let i = inv(Engine::Agy, Mode::Stream, Some("do it"));
-        let args = build_final_args(&i, vec!["--x".into()], "SCENE\n", Some("do it"));
+        let args = build_final_args(&i, vec!["--x".into()], vec![], "SCENE\n", Some("do it"));
         assert_eq!(
             args,
             vec![
@@ -460,7 +497,7 @@ mod tests {
     #[test]
     fn agy_repl_sends_the_scene_as_the_priming_turn() {
         let i = inv(Engine::Agy, Mode::Interactive, None);
-        let args = build_final_args(&i, vec![], "SCENE", None);
+        let args = build_final_args(&i, vec![], vec![], "SCENE", None);
         assert_eq!(args[0], "-i");
         assert!(args[1].starts_with("<system_instructions>\nSCENE\n</system_instructions>"));
         assert!(args[1].ends_with(AGY_REPL_PRIMER));
@@ -470,21 +507,43 @@ mod tests {
     fn agy_passthrough_stays_before_the_prompt_flag() {
         let mut i = inv(Engine::Agy, Mode::Stream, Some("hi"));
         i.passthrough_args = Some(vec!["--model".into(), "m".into()]);
-        let args = build_final_args(&i, vec![], "S", Some("hi"));
+        let args = build_final_args(&i, vec![], vec![], "S", Some("hi"));
         assert_eq!(args[..3], ["--model", "m", "-p"]);
     }
 
     #[test]
     fn claude_and_codex_argv_is_unchanged() {
         let c = inv(Engine::Claude, Mode::Stream, Some("hi"));
-        let args = build_final_args(&c, vec!["-p".into()], "S", Some("hi"));
+        let args = build_final_args(&c, vec!["-p".into()], vec![], "S", Some("hi"));
         assert_eq!(args, vec!["-p", "--append-system-prompt", "S", "hi"]);
 
         let x = inv(Engine::Codex, Mode::Stream, Some("hi"));
-        let args = build_final_args(&x, vec!["--json".into()], "S", Some("hi"));
+        let args = build_final_args(&x, vec!["--json".into()], vec![], "S", Some("hi"));
         assert_eq!(
             args,
             vec!["exec", "--json", "-c", "developer_instructions=\"S\"", "hi"]
+        );
+    }
+
+    #[test]
+    fn codex_project_skills_sit_between_config_and_scene() {
+        let mut x = inv(Engine::Codex, Mode::Stream, Some("hi"));
+        x.passthrough_args = Some(vec!["-c".into(), "user=1".into()]);
+        let project = vec!["-c".to_string(), "skills.config=[]".to_string()];
+        let args = build_final_args(&x, vec!["--json".into()], project, "S", Some("hi"));
+        assert_eq!(
+            args,
+            vec![
+                "exec",
+                "--json",
+                "-c",
+                "skills.config=[]",
+                "-c",
+                "developer_instructions=\"S\"",
+                "-c",
+                "user=1",
+                "hi"
+            ]
         );
     }
 }

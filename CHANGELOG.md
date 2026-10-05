@@ -11,6 +11,12 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.4.1] - 2026-10-05
+
+### Added
+
+- Codex 启动时读取项目 `.codex/config.toml` 的 `[[skills.config]]` 并追加到启动参数: 项目级 skill 开关生效 (Codex 自身只认全局配置); `--pre` 切换目录后同样生效。
+
 ## [1.4.0] - 2026-08-17
 
 ### Added
@@ -232,6 +238,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0

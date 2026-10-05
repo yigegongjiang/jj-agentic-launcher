@@ -1,3 +1,4 @@
+mod codex_project;
 mod config;
 mod format_agy;
 mod format_claude;
@@ -57,6 +58,15 @@ fn handle_meta_command(arg: Option<&str>) -> Option<i32> {
                 Some(1)
             }
         },
+        Some(codex_project::SUBCOMMAND) => {
+            let over = std::env::current_dir()
+                .ok()
+                .and_then(|cwd| codex_project::skills_override(&cwd));
+            if let Some(v) = over {
+                println!("{v}");
+            }
+            Some(0)
+        }
         Some("uninstall") => match update::uninstall() {
             Ok(code) => Some(code),
             Err(msg) => {

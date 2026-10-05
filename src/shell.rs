@@ -10,6 +10,10 @@
 
 const MCP_FLAG: &str = "--mcp-config";
 
+/// Argv placeholder for Codex project skill rules under `--pre`; expanded by the
+/// script into `-c skills.config=[...]` once `pre_cmd` has settled the cwd.
+pub const CODEX_SKILLS_DEFERRED: &str = "<codex-project-skills>";
+
 /// POSIX single-quote for safe interpolation into a generated script. Inside
 /// single quotes every byte is literal except `'` itself, so closing/escaping/
 /// reopening around each `'` is the entire rule — newlines, `$`, backticks and
@@ -111,6 +115,12 @@ fn emit_argv(script: &mut String, args: &[String]) {
     let mut i = 0;
 
     while i < args.len() {
+        if args[i] == CODEX_SKILLS_DEFERRED {
+            flush_plain(script, &mut plain);
+            emit_codex_skills(script);
+            i += 1;
+            continue;
+        }
         if args[i] != MCP_FLAG {
             plain.push(args[i].clone());
             i += 1;
@@ -146,6 +156,20 @@ fn emit_argv(script: &mut String, args: &[String]) {
     }
 
     flush_plain(script, &mut plain);
+}
+
+/// Ask this binary for the project's skill rules in the post-`pre_cmd` cwd; an
+/// empty answer adds nothing.
+fn emit_codex_skills(script: &mut String) {
+    let exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| crate::meta::NAME.to_string());
+    script.push_str(&format!(
+        "__jj_sk=$({} {})\n",
+        quote(&exe),
+        quote(crate::codex_project::SUBCOMMAND)
+    ));
+    script.push_str("[ -z \"$__jj_sk\" ] || set -- \"$@\" '-c' \"$__jj_sk\"\n");
 }
 
 /// Emit one `--mcp-config` group with its file sources gated on existence in the
@@ -273,6 +297,20 @@ mod tests {
     #[test]
     fn deferred_paths_empty_without_mcp_config() {
         assert!(deferred_mcp_paths(&s(&["-p", "hello"])).is_empty());
+    }
+
+    #[test]
+    fn codex_skills_placeholder_resolves_in_the_shell() {
+        let script = build_script(
+            ".. j api",
+            "codex",
+            &s(&["--json", CODEX_SKILLS_DEFERRED, "-c", "x=1"]),
+            true,
+        );
+        assert!(script.contains("set -- \"$@\" '--json'\n__jj_sk=$("));
+        assert!(script.contains("'__codex-project-skills')\n"));
+        assert!(script.contains("[ -z \"$__jj_sk\" ] || set -- \"$@\" '-c' \"$__jj_sk\"\nset -- \"$@\" '-c' 'x=1'\n"));
+        assert!(!script.contains(CODEX_SKILLS_DEFERRED));
     }
 
     #[test]

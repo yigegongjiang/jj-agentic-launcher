@@ -51,6 +51,17 @@ agy (Antigravity CLI) 没有任何 system prompt 参数 (`agy --help` / [headles
 - 流式渲染下 agy 的 `text_delta` 按字节切片, CJK 字符跨切片会被它自己替换成 `U+FFFD`; 要完整文本用 `-p` (raw text, 无此问题).
 - `--loop relay` / `--loop refine` / `<<>>` / `--pre` 全部照常可用.
 
+### Codex 项目配置
+
+Codex 原生读取受信任项目的 `.codex/config.toml` (根目录 -> cwd 逐层), 但项目层 `[[skills.config]]` 被其丢弃 (只认全局 + `-c`). 启动器补齐这一项:
+
+- 走 Codex 时读取项目 `.codex/config.toml` 的 `[[skills.config]]`, 合并为一个 `-c skills.config=[...]` 追加到启动参数 (位于 `config.json` 参数之后、scene / `--` 透传之前).
+- 层级与 Codex 一致: 项目根 = 最近含 `.git` 的祖先 (无则仅 cwd), 根 -> cwd 依序, 深层覆盖浅层; 跳过 `~/.codex`.
+- 相对 `path` 以所在 `.codex/` 为基准转绝对; `~/` 展开.
+- `--pre` 下 cwd 待定: 预览显示占位 `<codex-project-skills>`, 实际值在 pre 命令执行后的 cwd 计算.
+- 仅转发 skill 开关, 不经 Codex 信任检查 (只切换本机已有 skill); `[plugins.*]` / `[mcp_servers.*]` / `[skills.bundled]` 由 Codex 原生加载, 需项目已 trusted.
+- remote plugin (`@openai-curated-remote`) 启停由账号服务端决定, 项目 / `-c` 配置均无效.
+
 ### 默认 scene
 
 `config.json` → `scenes.default` = 一个 scene token, 语义与命令行参数完全一致: 别名 (`it`) / scene 文件名 (`it-expert`) / 引擎前缀改默认引擎 (`.it` = Codex, `,it` = agy). 改完立即生效, 无需重装.
@@ -227,7 +238,7 @@ jj-agentic-launcher uninstall   # 删除当前二进制
 
 ## 架构
 
-Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` / `agy` (PATH, 按需), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2`.
+Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` / `agy` (PATH, 按需), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2` / `toml`.
 
 ## 项目结构
 

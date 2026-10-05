@@ -7,6 +7,16 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.4.1] - 2026-10-05
+
+### Added
+
+- Codex 启动时读取项目 `.codex/config.toml` 的 `[[skills.config]]` 并追加到启动参数: 项目级 skill 开关生效 (Codex 自身只认全局配置); `--pre` 切换目录后同样生效。
+  - 依据: codex-rs `skill_config_rules_from_stack` 只收 `User` / `SessionFlags` 层 (codex-cli 0.160.0 实测); `-c` 落 SessionFlags 层, 叠加在全局规则之上。
+  - `codex_project.rs`: 项目根 = 最近 `.git` 祖先 (同 Codex 默认 `project_root_markers`), 根 -> cwd 收集, 相对 `path` 按 `.codex/` 转绝对; 新增 `toml` 依赖做解析 + 序列化。
+  - `--pre`: argv 放占位 `<codex-project-skills>`, `shell.rs` 生成脚本在 pre 后回调隐藏子命令 `__codex-project-skills` 取值。
+  - 只转发 skill 规则: 其余键若经 `-c` 注入会绕过 Codex 信任门与项目配置 denylist。
+
 ## [1.4.0] - 2026-08-17
 
 ### Added
@@ -281,6 +291,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.2.1...v1.3.0
