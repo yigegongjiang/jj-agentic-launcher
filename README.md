@@ -64,7 +64,7 @@ Codex 原生读取受信任项目的 `.codex/config.toml` (根目录 -> cwd 逐�
 
 ### 扩展开关 `ext` (MCP / skill / plugin)
 
-一处收口 Claude Code + Codex 的 MCP / skill / plugin: 全局一键开关 + 当前目录 (cwd) 项目定点开关.
+一处收口 Claude Code + Codex 的 MCP / skill / plugin: 全局一键开关 + 当前目录 (cwd) 项目定点开关. 两引擎配置层级 / 优先级 / 坑: [docs/agent-ext-config.md](./docs/agent-ext-config.md).
 
 ```bash
 jj-agentic-launcher ext                                   # 清单: global / project / 生效值 (= ext ls [claude|codex])
@@ -80,21 +80,23 @@ jj-agentic-launcher ext off claude mcp proxyman
 <!-- prettier-ignore -->
 | | 全局 | 项目 (cwd) |
 | --- | --- | --- |
-| claude plugin | `~/.claude/settings.json` `enabledPlugins` | `.claude/settings.json` `enabledPlugins` |
-| claude skill | `config.json` `claude.user_skills_off` | `.claude/settings.json` `skillOverrides` |
+| claude plugin | `~/.claude/settings.json` `enabledPlugins` | `.claude/settings.local.json` `enabledPlugins` |
+| claude skill | `config.json` `claude.user_skills_off` | `.claude/settings.local.json` `skillOverrides` |
 | claude mcp | `claude.args` 里的绝对 `--mcp-config` 文件 (开集) + `mcp-catalog.json` (关闭时的定义) | `.mcp.json` |
 | codex mcp | `~/.codex/config.toml` `mcp_servers.*.enabled` | `.codex/config.toml` `mcp_servers.*.enabled` |
-| codex skill | `[[skills.config]]` path 规则 | `[[skills.config]]` name 规则 (启动器转发) |
+| codex skill | `[[skills.config]]` 规则 (已有 path/name 规则原位改, 新增用 name) | `[[skills.config]]` name 规则 (启动器转发) |
 | codex plugin | `plugins."<id>".enabled` (本地 plugin) | `.codex/config.toml` 同名键 |
 
 - 清单来源: Claude = `installed_plugins.json` / `~/.claude/skills` / MCP 定义 (catalog + `~/.claude.json` user scope + 全局文件 + 项目 `.mcp.json`); Codex = `codex app-server` `skills/list` + `plugin/list` (只取用户级 skill、本地 plugin) + 全局 `mcp_servers`.
 - 不碰: Claude `@builtin` plugin, Codex `features.remote_plugin` / `features.apps`, remote plugin (服务端决定).
 - Claude MCP 依赖 `--strict-mcp-config` (缺则 `[note]`); 项目打开时按名从 catalog -> `~/.claude.json` -> 全局文件取定义写入 `.mcp.json`, 关闭时定义收入 catalog.
 - Codex 项目 mcp 只能开关全局已定义的服务器 (项目表只写 `enabled`, 合并到全局定义上); mcp / plugin 需项目 trusted (否则 `[note]`), skill 由启动器转发不受限.
-- Claude 项目开关写进已持有该键的文件: `settings.local.json` 有则改它 (Claude 以 local 为准), 否则 `settings.json`.
+- Claude 项目开关只写 `.claude/settings.local.json`: 项目内优先级最高 (managed > `--settings` > project local > shared project > user), 共享 `settings.json` 写什么都压得住.
 - Claude MCP 定义只在某项目 `.mcp.json` 里时: 在该项目 `ext off claude mcp <name>` 一次即收入 catalog, 之后任意项目 `ext on` 原样写回.
 - 生效范围: Claude skill / MCP 开关只对启动器拉起的会话生效 (`user_skills_off` + `--strict-mcp-config`), plugin 开关全局生效; Codex 全局 mcp / plugin 改的是共享 `~/.codex/config.toml`, 裸 `codex` 与桌面 app 同样受影响; Codex 项目 skill 开关只经启动器生效, name 规则命中同名的全部 skill.
-- 全局写入前留 `<file>.jj-orig` (首次) + `<file>.jj-bak` (上一次); 临时文件 + rename 原子写; 计划后文件被改则中止.
+- 写入: 同目录独占临时文件 + fsync + rename (沿用原文件权限位); 软链配置写到链接目标, 不替换软链; 全部文件先比对计划时内容, 任一被改则整体中止, 一个不写.
+- 结构异常 (如 `plugins = "x"`, JSON 段非 object) 报错不覆盖; 内联写法 (`mcp_servers = { ... }`, `skills = { config = [...] }`, 点分键) 原位修改.
+- 全局写入前留 `<file>.jj-orig` (首次, 之后不覆盖) + `<file>.jj-bak` (上一次), 权限同原文件.
 
 ### 默认 scene
 
@@ -269,7 +271,7 @@ scenes/*.md    # 自定义 scene 文件 (首次运行内置 scene 落盘)
 Claude Code 无「用户级 skill 全关 + 项目按需开」开关, launcher 代为合成: 启动时注入 `--settings '{"skillOverrides":{"<name>":"off",...}}'`.
 
 - off 列表 = `~/.claude/skills/*` 实时枚举 (名取 SKILL.md frontmatter `name`) − cwd `.claude/settings{,.local}.json` 的 `skillOverrides` 已列出的名字 − cwd `.claude/skills/*` 同名 skill.
-- 项目打开某个用户 skill: 该项目 `.claude/settings.json` → `{"skillOverrides": {"archify": "on"}}`.
+- 项目打开某个用户 skill: 该项目 `.claude/settings.local.json` (或 `settings.json`) → `{"skillOverrides": {"archify": "on"}}`; `ext on claude skill archify` 写前者.
 - 只看 cwd (Claude 自身也只读 cwd 的项目 settings, 不上溯父目录 / git root); `--pre` 下预览显示占位 `<claude-user-skills-off>`, 实际值在 pre 命令执行后的 cwd 计算.
 - 仅 Claude 引擎; config / `--` 透传里已有 `--settings` → `[warn]` + 跳过.
 - 插件 / MCP 不归此项: 插件 = 用户 settings `enabledPlugins` 置 `false` + 项目 `.claude/settings.json` 置 `true`; MCP = `--strict-mcp-config` + `--mcp-config <全局> .mcp.json`.
@@ -291,6 +293,7 @@ Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHu
 src/          # CLI 主体: main / parse / config / run / handoff / server / scene 解析 / 流事件格式化 / update
 scenes/       # 内置 scene prompt (compile-time include_str! 嵌入, 首次运行落盘到 ~/.config/)
 scripts/      # 辅助脚本
+docs/         # 技术沉淀 (Claude / Codex 配置机制)
 Cargo.toml    # 包定义, VERSION 经 env!(CARGO_PKG_VERSION) 注入二进制
 ```
 

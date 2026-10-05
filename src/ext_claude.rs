@@ -1,10 +1,10 @@
 //! `ext` for Claude Code.
 //!
 //! - plugin: user `~/.claude/settings.json` `enabledPlugins` (global) / cwd
-//!   `.claude/settings.json` `enabledPlugins` (project). `@builtin` plugins are
+//!   `.claude/settings.local.json` `enabledPlugins` (project). `@builtin` plugins are
 //!   Claude Code internals (telemetry et al.) and are never touched.
 //! - skill: launcher `claude.user_skills_off` (global, see `skills.rs`) / cwd
-//!   `.claude/settings.json` `skillOverrides` (project).
+//!   `.claude/settings.local.json` `skillOverrides` (project).
 //! - mcp: the launcher runs Claude with `--strict-mcp-config`, so only the
 //!   `--mcp-config` files count. The absolute one in `claude.args` is the global
 //!   "on" set; `mcp-catalog.json` next to config.json keeps definitions that are
@@ -103,11 +103,12 @@ fn obj<'a>(m: &'a Map<String, Value>, key: &str) -> Option<&'a Map<String, Value
     m.get(key).and_then(Value::as_object)
 }
 
-fn obj_mut<'a>(m: &'a mut Map<String, Value>, key: &str) -> &'a mut Map<String, Value> {
-    if !m.get(key).is_some_and(Value::is_object) {
-        m.insert(key.to_string(), Value::Object(Map::new()));
-    }
-    m.get_mut(key).and_then(Value::as_object_mut).expect("just inserted")
+/// `m[key]` as an object, created when absent. A present non-object value is an
+/// error, never silently replaced — it is the user's data.
+fn obj_mut<'a>(m: &'a mut Map<String, Value>, key: &str) -> Result<&'a mut Map<String, Value>, String> {
+    let v = m.entry(key.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    v.as_object_mut()
+        .ok_or_else(|| format!("`{key}` is not a JSON object; fix it by hand first"))
 }
 
 fn servers(m: &Map<String, Value>) -> Map<String, Value> {
@@ -214,7 +215,7 @@ pub fn inventory(cwd: &Path) -> Result<Inventory, String> {
 /// Seed the `claude` section from the built-in defaults when config.json has
 /// none: a section holding only `user_skills_off` would otherwise mean "no
 /// args" and drop the mode flags (see `config::get_configured_args`).
-fn claude_section(root: &mut Map<String, Value>) -> &mut Map<String, Value> {
+fn claude_section(root: &mut Map<String, Value>) -> Result<&mut Map<String, Value>, String> {
     if !root.get("claude").is_some_and(Value::is_object) {
         let seed = serde_json::from_str::<Value>(DEFAULT_CONFIG_JSON)
             .ok()
@@ -235,7 +236,7 @@ pub fn plan_global(on: bool) -> Result<(Vec<FileEdit>, Vec<String>), String> {
     let (_, installed) = read_obj(&p.installed_plugins)?;
     let mut changes = Vec::new();
     let ids = plugin_ids(&installed, &settings);
-    let ep = obj_mut(&mut settings, "enabledPlugins");
+    let ep = obj_mut(&mut settings, "enabledPlugins")?;
     for id in ids {
         set(ep, &id, Value::Bool(on), "enabledPlugins", &mut changes);
     }
@@ -244,7 +245,7 @@ pub fn plan_global(on: bool) -> Result<(Vec<FileEdit>, Vec<String>), String> {
     // skills
     let (before, mut cfg) = read_obj(&p.launcher_config)?;
     let mut changes = Vec::new();
-    set(claude_section(&mut cfg), "user_skills_off", Value::Bool(!on), "claude", &mut changes);
+    set(claude_section(&mut cfg)?, "user_skills_off", Value::Bool(!on), "claude", &mut changes);
     edits.push(edit(&p.launcher_config, before, &cfg, changes));
 
     // mcp
@@ -257,7 +258,7 @@ pub fn plan_global(on: bool) -> Result<(Vec<FileEdit>, Vec<String>), String> {
             let mut gchanges = Vec::new();
             let mut cchanges = Vec::new();
             let mut global = servers(&groot);
-            let cat = obj_mut(&mut catalog, "mcpServers");
+            let cat = obj_mut(&mut catalog, "mcpServers")?;
             if on {
                 let mut all = servers(&claude_json);
                 all.extend(cat.clone());
@@ -293,13 +294,12 @@ pub fn plan_global(on: bool) -> Result<(Vec<FileEdit>, Vec<String>), String> {
 pub fn plan_project(cwd: &Path, on: bool, targets: &[(Kind, String)]) -> Result<(Vec<FileEdit>, Vec<String>), String> {
     let p = paths();
     let mut notes = Vec::new();
-    // Claude reads settings.local.json over settings.json, so a key the local
-    // file already holds must be changed there or the switch would not stick.
-    let settings_path = cwd.join(".claude").join("settings.json");
+    // Project switches always go to settings.local.json: it outranks the shared
+    // .claude/settings.json (Claude settings precedence: managed > --settings >
+    // project local > shared project > user), so the switch holds whatever the
+    // shared file says.
     let local_path = cwd.join(".claude").join("settings.local.json");
-    let (sbefore, mut settings) = read_obj(&settings_path)?;
     let (lbefore, mut local) = read_obj(&local_path)?;
-    let mut schanges = Vec::new();
     let mut lchanges = Vec::new();
     let mcp_path = cwd.join(".mcp.json");
     let (mbefore, mut mroot) = read_obj(&mcp_path)?;
@@ -311,19 +311,17 @@ pub fn plan_project(cwd: &Path, on: bool, targets: &[(Kind, String)]) -> Result<
     for (kind, name) in targets {
         match kind {
             Kind::Plugin => {
-                let (file, changes) = pick_file(&mut settings, &mut schanges, &mut local, &mut lchanges, "enabledPlugins", name);
-                set(obj_mut(file, "enabledPlugins"), name, Value::Bool(on), "enabledPlugins", changes);
+                set(obj_mut(&mut local, "enabledPlugins")?, name, Value::Bool(on), "enabledPlugins", &mut lchanges);
             }
             Kind::Skill => {
                 if !user_skills.contains(name) {
                     notes.push(format!("claude skill `{name}` is not under {}/skills", p.claude_dir.display()));
                 }
                 let v = Value::String(label(on).into());
-                let (file, changes) = pick_file(&mut settings, &mut schanges, &mut local, &mut lchanges, "skillOverrides", name);
-                set(obj_mut(file, "skillOverrides"), name, v, "skillOverrides", changes);
+                set(obj_mut(&mut local, "skillOverrides")?, name, v, "skillOverrides", &mut lchanges);
             }
             Kind::Mcp => {
-                let project = obj_mut(&mut mroot, "mcpServers");
+                let project = obj_mut(&mut mroot, "mcpServers")?;
                 if on {
                     if project.contains_key(name) {
                         continue;
@@ -334,7 +332,7 @@ pub fn plan_project(cwd: &Path, on: bool, targets: &[(Kind, String)]) -> Result<
                     mchanges.push(format!("mcpServers + {name}"));
                 } else if let Some(def) = project.remove(name) {
                     mchanges.push(format!("mcpServers - {name}"));
-                    let cat = obj_mut(&mut catalog, "mcpServers");
+                    let cat = obj_mut(&mut catalog, "mcpServers")?;
                     if !cat.contains_key(name) {
                         cat.insert(name.clone(), def);
                         cchanges.push(format!("+ {name} (kept while off)"));
@@ -346,29 +344,11 @@ pub fn plan_project(cwd: &Path, on: bool, targets: &[(Kind, String)]) -> Result<
     Ok((
         vec![
             edit(&p.catalog, cbefore, &catalog, cchanges),
-            edit(&settings_path, sbefore, &settings, schanges),
             edit(&local_path, lbefore, &local, lchanges),
             edit(&mcp_path, mbefore, &mroot, mchanges),
         ],
         notes,
     ))
-}
-
-/// The settings file to edit for `section.key`: `settings.local.json` when it
-/// already sets the key, else `settings.json`.
-fn pick_file<'a>(
-    shared: &'a mut Map<String, Value>,
-    shared_changes: &'a mut Vec<String>,
-    local: &'a mut Map<String, Value>,
-    local_changes: &'a mut Vec<String>,
-    section: &str,
-    key: &str,
-) -> (&'a mut Map<String, Value>, &'a mut Vec<String>) {
-    if obj(local, section).is_some_and(|m| m.contains_key(key)) {
-        (local, local_changes)
-    } else {
-        (shared, shared_changes)
-    }
 }
 
 /// Definition by name: catalog, then `~/.claude.json` user scope, then the
@@ -421,7 +401,7 @@ mod tests {
     #[test]
     fn claude_section_is_seeded_from_defaults() {
         let mut root = Map::new();
-        claude_section(&mut root).insert("user_skills_off".into(), Value::Bool(true));
+        claude_section(&mut root).unwrap().insert("user_skills_off".into(), Value::Bool(true));
         let c = root.get("claude").unwrap();
         assert!(c.get("args").is_some(), "seeded args keep mode flags working");
         assert_eq!(c.get("user_skills_off"), Some(&Value::Bool(true)));

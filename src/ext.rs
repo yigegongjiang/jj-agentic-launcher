@@ -91,7 +91,7 @@ const USAGE: &str = "Usage:
   {NAME} ext on|off [--dry-run]                       Pick items with fzf, switch them for this project (cwd)
   {NAME} ext on|off <claude|codex> <mcp|skill|plugin> <name>... [--dry-run]
 
-Project switches are written to the cwd: .claude/settings.json + .mcp.json (Claude),
+Project switches are written to the cwd: .claude/settings.local.json + .mcp.json (Claude),
 .codex/config.toml (Codex). Global writes keep <file>.jj-orig (first write) + <file>.jj-bak (last).";
 
 pub fn run(args: &[String]) -> i32 {
@@ -295,9 +295,12 @@ fn switch_project(
     apply(edits, dry, false)
 }
 
-/// Write planned edits. Global (`backup`) writes first keep the file as it was
-/// before `ext` ever touched it (`.jj-orig`, written once) and as it was before
-/// this write (`.jj-bak`) — two files at most, so nothing piles up over time.
+/// Write planned edits. Every file is checked against the text its plan was
+/// computed from before anything is written, so a concurrent change (Claude /
+/// Codex rewriting their own config) aborts the whole run instead of being
+/// overwritten. Global (`backup`) writes keep the file as it was before `ext`
+/// first touched it (`.jj-orig`, written once) and as it was before this write
+/// (`.jj-bak`) — two files at most, so nothing piles up over time.
 fn apply(edits: Vec<FileEdit>, dry: bool, backup: bool) -> Result<(), String> {
     let edits: Vec<FileEdit> = edits.into_iter().filter(|e| !e.changes.is_empty()).collect();
     if edits.is_empty() {
@@ -314,26 +317,37 @@ fn apply(edits: Vec<FileEdit>, dry: bool, backup: bool) -> Result<(), String> {
         return Ok(());
     }
     for e in &edits {
-        let now = fs::read_to_string(&e.path).ok();
-        if now != e.before {
-            return Err(format!(
-                "{} changed while planning; nothing after it was written, re-run",
-                e.path.display()
-            ));
+        if fs::read_to_string(&e.path).ok() != e.before {
+            return Err(format!("{} changed while planning; nothing written, re-run", e.path.display()));
         }
-        if backup {
-            if let Some(cur) = &now {
-                let orig = suffixed(&e.path, ".jj-orig");
-                if !orig.exists() {
-                    fs::write(&orig, cur).map_err(|x| format!("{}: {x}", orig.display()))?;
-                }
-                let bak = suffixed(&e.path, ".jj-bak");
-                fs::write(&bak, cur).map_err(|x| format!("{}: {x}", bak.display()))?;
+    }
+    for e in &edits {
+        let target = real_path(&e.path);
+        if backup && e.before.is_some() {
+            let orig = suffixed(&target, ".jj-orig");
+            if !orig.exists() {
+                copy_file(&target, &orig)?;
             }
+            copy_file(&target, &suffixed(&target, ".jj-bak"))?;
         }
-        write_atomic(&e.path, &e.after)?;
+        write_atomic(&target, &e.after)?;
     }
     Ok(())
+}
+
+/// Follow a symlinked config (dotfiles managers link `~/.codex/config.toml` et
+/// al.) so the rename replaces the real file, not the link.
+fn real_path(path: &Path) -> PathBuf {
+    match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()),
+        _ => path.to_path_buf(),
+    }
+}
+
+/// `fs::copy` keeps the permission bits, so a backup is never more readable
+/// than the config it copies (these files can hold tokens).
+fn copy_file(from: &Path, to: &Path) -> Result<(), String> {
+    fs::copy(from, to).map(|_| ()).map_err(|e| format!("{}: {e}", to.display()))
 }
 
 fn suffixed(p: &Path, suffix: &str) -> PathBuf {
@@ -342,14 +356,33 @@ fn suffixed(p: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// Temp file + rename, so a reader (the engine itself) never sees half a file.
+/// Exclusive temp file in the target dir + fsync + rename, so a reader (the
+/// engine itself) never sees half a file and a crash never leaves one. The
+/// temp file takes the target's permission bits before it replaces it.
 fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+    use std::io::Write as _;
+
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    let tmp = suffixed(path, &format!(".jj-tmp-{}", std::process::id()));
-    fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
-    fs::rename(&tmp, path).map_err(|e| {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let tmp = suffixed(path, &format!(".jj-tmp-{}-{nanos}", std::process::id()));
+    let result = (|| {
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+        if let Ok(meta) = fs::metadata(path) {
+            fs::set_permissions(&tmp, meta.permissions())?;
+        }
+        fs::rename(&tmp, path)
+    })();
+    result.map_err(|e| {
         let _ = fs::remove_file(&tmp);
         format!("{}: {e}", path.display())
     })
@@ -380,6 +413,52 @@ mod tests {
         };
         assert!(apply(vec![edit], false, true).is_err());
         assert_eq!(fs::read_to_string(&p).unwrap(), "new");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn write_goes_through_symlink_and_keeps_mode() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        let d = std::env::temp_dir().join(format!("jj-ext-link-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        let real = d.join("real.toml");
+        let link = d.join("link.toml");
+        fs::write(&real, "a").unwrap();
+        fs::set_permissions(&real, fs::Permissions::from_mode(0o600)).unwrap();
+        symlink(&real, &link).unwrap();
+        let e = FileEdit {
+            path: link.clone(),
+            before: Some("a".into()),
+            after: "b".into(),
+            changes: vec!["c".into()],
+        };
+        apply(vec![e], false, true).unwrap();
+        assert!(fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_to_string(&real).unwrap(), "b");
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&real), 0o600);
+        assert_eq!(mode(&suffixed(&real, ".jj-bak")), 0o600);
+        assert!(fs::read_dir(&d).unwrap().all(|x| !x.unwrap().file_name().to_string_lossy().contains("jj-tmp")));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn stale_file_aborts_before_any_write() {
+        let d = std::env::temp_dir().join(format!("jj-ext-stale-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        let (a, b) = (d.join("a"), d.join("b"));
+        fs::write(&a, "a1").unwrap();
+        fs::write(&b, "moved").unwrap();
+        let ed = |p: &Path, before: &str| FileEdit {
+            path: p.to_path_buf(),
+            before: Some(before.into()),
+            after: "new".into(),
+            changes: vec!["c".into()],
+        };
+        assert!(apply(vec![ed(&a, "a1"), ed(&b, "b1")], false, false).is_err());
+        assert_eq!(fs::read_to_string(&a).unwrap(), "a1", "first file untouched");
         let _ = fs::remove_dir_all(&d);
     }
 

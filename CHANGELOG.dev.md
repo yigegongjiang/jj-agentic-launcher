@@ -7,6 +7,27 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.5.1] - 2026-10-05
+
+### Changed
+
+- `ext on|off` 的 Claude 项目开关统一写入优先级最高的 `.claude/settings.local.json`。
+  - 依据 Claude settings 优先级 managed > `--settings` > project local > shared project > user; `enabledPlugins` 按子键合并 (实测 `claude plugin list`)。
+
+### Fixed
+
+- `ext` 改配置更稳: 内联 / 点分写法原位修改不再被跳过或丢失, 值类型异常时报错而不覆盖, 软链配置写到真实文件, 备份与新文件保留原权限。
+  - `ext_codex.rs`: `skills_rules` + `rules_mut` 同时支持 `[[skills.config]]` 与内联数组 (旧实现把内联 `skills = { config = [...] }` 转 AoT 后丢数据); `preserves` 护栏比对改写前后 TOML, 除 `enabled` / 列表尾部新增外不得变化。
+  - `ext.rs`: 写前统一比对全部文件再写; `create_new` 临时文件 + `sync_all` + 沿用权限 + rename; `real_path` 跟随软链; 备份用 `fs::copy` 保权限。参照 cc-switch `config.rs` 原子写。
+  - `set_enabled` / `obj_mut` 遇非表 / 非 object 值返回错误。
+- Codex 全局 skill 开关改用名称规则, skill 所在路径随版本变化后不再自动恢复为开启。
+  - 已有 path / name 规则仍原位改; 只有新增规则用 `name`。
+
+### Added
+
+- `docs/agent-ext-config.md`: Claude / Codex 的 MCP / skill / plugin 配置层级、优先级、坑与本项目写配置的稳定性约束。
+  - 同时提交本项目自身的 `.claude/settings.local.json` / `.codex/config.toml` / `.mcp.json` 作测试样例 (`.gitignore` 放行 `settings.local.json`)。
+
 ## [1.5.0] - 2026-10-05
 
 ### Added
@@ -314,6 +335,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.5.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1

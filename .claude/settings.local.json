@@ -1,0 +1,9 @@
+{
+  "enabledMcpjsonServers": ["chrome-devtools", "codegraph", "proxyman"],
+  "skillOverrides": {
+    "qmd": "on"
+  },
+  "enabledPlugins": {
+    "codex@openai-codex": true
+  }
+}

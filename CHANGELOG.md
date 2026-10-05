@@ -11,6 +11,17 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.5.1] - 2026-10-05
+
+### Changed
+
+- `ext on|off` 的 Claude 项目开关统一写入优先级最高的 `.claude/settings.local.json`。
+
+### Fixed
+
+- `ext` 改配置更稳: 内联 / 点分写法原位修改不再被跳过或丢失, 值类型异常时报错而不覆盖, 软链配置写到真实文件, 备份与新文件保留原权限。
+- Codex 全局 skill 开关改用名称规则, skill 所在路径随版本变化后不再自动恢复为开启。
+
 ## [1.5.0] - 2026-10-05
 
 ### Added
@@ -252,6 +263,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.5.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1

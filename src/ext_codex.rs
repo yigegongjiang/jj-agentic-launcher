@@ -199,44 +199,91 @@ fn mcp_names(doc: &DocumentMut) -> Vec<(String, bool)> {
 }
 
 /// `doc[parent][name].enabled = on`, creating `[parent.name]` as needed with
-/// `parent` kept implicit (no bare `[plugins]` header).
-fn set_enabled(doc: &mut DocumentMut, parent: &str, name: &str, on: bool, changes: &mut Vec<String>) {
-    let cur = doc
-        .get(parent)
-        .and_then(|p| p.get(name))
-        .and_then(|t| t.get("enabled"))
-        .and_then(TItem::as_bool);
-    if cur == Some(on) {
-        return;
-    }
+/// `parent` kept implicit (no bare `[plugins]` header). Works on dotted keys and
+/// inline tables alike; a non-table value there is the user's data and an error.
+fn set_enabled(doc: &mut DocumentMut, parent: &str, name: &str, on: bool, changes: &mut Vec<String>) -> Result<(), String> {
     if !doc.contains_key(parent) {
         let mut t = Table::new();
         t.set_implicit(true);
         doc.insert(parent, TItem::Table(t));
     }
-    let Some(p) = doc[parent].as_table_like_mut() else {
-        return;
-    };
+    let p = doc[parent]
+        .as_table_like_mut()
+        .ok_or_else(|| format!("`{parent}` is not a table; fix it by hand first"))?;
     if p.get(name).is_none() {
         p.insert(name, TItem::Table(Table::new()));
     }
-    if let Some(t) = p.get_mut(name).and_then(TItem::as_table_like_mut) {
+    let t = p
+        .get_mut(name)
+        .and_then(TItem::as_table_like_mut)
+        .ok_or_else(|| format!("`{parent}.{name}` is not a table; fix it by hand first"))?;
+    if t.get("enabled").and_then(TItem::as_bool) != Some(on) {
         t.insert("enabled", value(on));
         changes.push(format!("{parent}.\"{name}\".enabled = {on}"));
     }
+    Ok(())
 }
 
-fn skills_aot(doc: &mut DocumentMut) -> Option<&mut ArrayOfTables> {
+/// `skills.config`, located (and created as `[[skills.config]]` when absent)
+/// without changing how the user wrote it: a standard array of tables, or an
+/// inline `config = [{ ... }]` (possibly inside `skills = { ... }`). Converting
+/// the inline form would drop it — an array of tables cannot live inside an
+/// inline table — so both forms are edited where they are.
+fn skills_rules(doc: &mut DocumentMut) -> Result<&mut TItem, String> {
     if !doc.contains_key("skills") {
         let mut t = Table::new();
         t.set_implicit(true);
         doc.insert("skills", TItem::Table(t));
     }
-    let skills = doc["skills"].as_table_like_mut()?;
+    let inline = doc["skills"].is_inline_table();
+    let skills = doc["skills"]
+        .as_table_like_mut()
+        .ok_or("`skills` is not a table; fix it by hand first")?;
     if skills.get("config").is_none() {
-        skills.insert("config", TItem::ArrayOfTables(ArrayOfTables::new()));
+        if inline || skills.is_dotted() {
+            skills.insert("config", TItem::Value(toml_edit::Value::Array(toml_edit::Array::new())));
+        } else {
+            skills.insert("config", TItem::ArrayOfTables(ArrayOfTables::new()));
+        }
     }
-    skills.get_mut("config")?.as_array_of_tables_mut()
+    let item = skills.get_mut("config").ok_or("skills.config")?;
+    let ok = item.is_array_of_tables()
+        || item.as_array().is_some_and(|a| a.iter().all(|v| v.is_inline_table()));
+    if !ok {
+        return Err("`skills.config` is not a list of tables; fix it by hand first".into());
+    }
+    Ok(item)
+}
+
+/// Every rule in `skills.config`, whichever form it is written in.
+fn rules_mut(item: &mut TItem) -> Vec<&mut dyn toml_edit::TableLike> {
+    match item {
+        TItem::ArrayOfTables(aot) => aot.iter_mut().map(|t| t as &mut dyn toml_edit::TableLike).collect(),
+        TItem::Value(toml_edit::Value::Array(arr)) => arr
+            .iter_mut()
+            .filter_map(|v| v.as_inline_table_mut())
+            .map(|t| t as &mut dyn toml_edit::TableLike)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn push_rule(item: &mut TItem, key: &str, val: &str, on: bool) {
+    match item {
+        TItem::ArrayOfTables(aot) => {
+            let mut t = Table::new();
+            t.insert(key, value(val));
+            t.insert("enabled", value(on));
+            aot.push(t);
+        }
+        TItem::Value(toml_edit::Value::Array(arr)) => {
+            let mut t = toml_edit::InlineTable::new();
+            t.insert(key, val.into());
+            t.insert("enabled", on.into());
+            arr.push(t);
+        }
+        _ => {}
+    }
 }
 
 fn canon(p: &str) -> PathBuf {
@@ -245,11 +292,14 @@ fn canon(p: &str) -> PathBuf {
 }
 
 /// Global skill switch: every rule matching the skill (by canonical path or by
-/// name) gets `enabled = on`; a skill with no rule gets a new path rule.
-fn set_skill_global(aot: &mut ArrayOfTables, skill: &Skill, on: bool, changes: &mut Vec<String>) {
+/// name) gets `enabled = on`; a skill with no rule gets a new *name* rule. A
+/// path rule would go stale when the skill moves — symlinked skills resolve to
+/// versioned app paths (`.../ego lite.app/.../0.5.1.13/...`) — and the skill
+/// would silently come back on after an update.
+fn set_skill_global(item: &mut TItem, skill: &Skill, on: bool, changes: &mut Vec<String>) {
     let target = canon(&skill.path);
     let mut matched = false;
-    for t in aot.iter_mut() {
+    for t in rules_mut(item) {
         let by_path = t.get("path").and_then(TItem::as_str).is_some_and(|p| canon(p) == target);
         let by_name = t.get("name").and_then(TItem::as_str) == Some(skill.name.as_str());
         if !(by_path || by_name) {
@@ -262,18 +312,15 @@ fn set_skill_global(aot: &mut ArrayOfTables, skill: &Skill, on: bool, changes: &
         }
     }
     if !matched {
-        let mut t = Table::new();
-        t.insert("path", value(skill.path.clone()));
-        t.insert("enabled", value(on));
-        aot.push(t);
-        changes.push(format!("skills.config + {} ({}) = {on}", skill.name, skill.path));
+        push_rule(item, "name", &skill.name, on);
+        changes.push(format!("skills.config + {} = {on}", skill.name));
     }
 }
 
 /// Project skill switch: one name rule per skill.
-fn set_skill_project(aot: &mut ArrayOfTables, name: &str, on: bool, changes: &mut Vec<String>) {
+fn set_skill_project(item: &mut TItem, name: &str, on: bool, changes: &mut Vec<String>) {
     let mut matched = false;
-    for t in aot.iter_mut() {
+    for t in rules_mut(item) {
         if t.get("name").and_then(TItem::as_str) != Some(name) {
             continue;
         }
@@ -284,21 +331,44 @@ fn set_skill_project(aot: &mut ArrayOfTables, name: &str, on: bool, changes: &mu
         }
     }
     if !matched {
-        let mut t = Table::new();
-        t.insert("name", value(name));
-        t.insert("enabled", value(on));
-        aot.push(t);
+        push_rule(item, "name", name, on);
         changes.push(format!("skills.config + {name} = {on}"));
     }
 }
 
-fn doc_edit(path: &Path, before: Option<String>, doc: &DocumentMut, changes: Vec<String>) -> FileEdit {
-    FileEdit {
+/// Safety net for every TOML plan: apart from `enabled` flags and appended
+/// list entries, the new text must hold exactly the old data. A formatting
+/// corner case in the editor can then never drop or alter user config.
+fn preserves(before: &toml::Value, after: &toml::Value) -> bool {
+    use toml::Value as V;
+    match (before, after) {
+        (V::Table(b), V::Table(a)) => b
+            .iter()
+            .all(|(k, bv)| k == "enabled" || a.get(k).is_some_and(|av| preserves(bv, av))),
+        (V::Array(b), V::Array(a)) => a.len() >= b.len() && b.iter().zip(a).all(|(x, y)| preserves(x, y)),
+        _ => before == after,
+    }
+}
+
+fn checked(path: &Path, before: &Option<String>, after: &str) -> Result<(), String> {
+    let parse = |t: &str| t.parse::<toml::Table>().map(toml::Value::Table);
+    let old = parse(before.as_deref().unwrap_or("")).map_err(|e| format!("{}: {e}", path.display()))?;
+    let new = parse(after).map_err(|e| format!("{}: edit produced invalid TOML ({e}); nothing written", path.display()))?;
+    if !preserves(&old, &new) {
+        return Err(format!("{}: edit would change data beyond `enabled`; nothing written", path.display()));
+    }
+    Ok(())
+}
+
+fn doc_edit(path: &Path, before: Option<String>, doc: &DocumentMut, changes: Vec<String>) -> Result<FileEdit, String> {
+    let after = doc.to_string();
+    checked(path, &before, &after)?;
+    Ok(FileEdit {
         path: path.to_path_buf(),
         before,
-        after: doc.to_string(),
+        after,
         changes,
-    }
+    })
 }
 
 /// Project state from the cwd's `.codex/config.toml`.
@@ -364,7 +434,7 @@ pub fn plan_global(on: bool) -> Result<(Vec<FileEdit>, Vec<String>), String> {
     let path = user_config()?;
     let (skills, plugins) = query_codex()?;
     let (before, mut doc) = read_doc(&path)?;
-    Ok((vec![plan_global_doc(&path, before, &mut doc, &skills, &plugins, on)], Vec::new()))
+    Ok((vec![plan_global_doc(&path, before, &mut doc, &skills, &plugins, on)?], Vec::new()))
 }
 
 fn plan_global_doc(
@@ -374,19 +444,18 @@ fn plan_global_doc(
     skills: &[Skill],
     plugins: &[Plugin],
     on: bool,
-) -> FileEdit {
+) -> Result<FileEdit, String> {
     let mut changes = Vec::new();
     for (name, _) in mcp_names(doc) {
-        set_enabled(doc, "mcp_servers", &name, on, &mut changes);
+        set_enabled(doc, "mcp_servers", &name, on, &mut changes)?;
     }
     for p in plugins {
-        set_enabled(doc, "plugins", &p.id, on, &mut changes);
+        set_enabled(doc, "plugins", &p.id, on, &mut changes)?;
     }
     if !skills.is_empty() {
-        if let Some(aot) = skills_aot(doc) {
-            for s in skills {
-                set_skill_global(aot, s, on, &mut changes);
-            }
+        let rules = skills_rules(doc)?;
+        for s in skills {
+            set_skill_global(rules, s, on, &mut changes);
         }
     }
     doc_edit(path, before, doc, changes)
@@ -410,20 +479,16 @@ pub fn plan_project(cwd: &Path, on: bool, targets: &[(Kind, String)]) -> Result<
                         user_config()?.display()
                     ));
                 }
-                set_enabled(&mut doc, "mcp_servers", name, on, &mut changes);
+                set_enabled(&mut doc, "mcp_servers", name, on, &mut changes)?;
             }
-            Kind::Plugin => set_enabled(&mut doc, "plugins", name, on, &mut changes),
-            Kind::Skill => {
-                if let Some(aot) = skills_aot(&mut doc) {
-                    set_skill_project(aot, name, on, &mut changes);
-                }
-            }
+            Kind::Plugin => set_enabled(&mut doc, "plugins", name, on, &mut changes)?,
+            Kind::Skill => set_skill_project(skills_rules(&mut doc)?, name, on, &mut changes),
         }
     }
     if targets.iter().any(|(k, _)| *k != Kind::Skill) {
         notes.extend(trust_note(cwd, &user));
     }
-    Ok((vec![doc_edit(&path, before, &doc, changes)], notes))
+    Ok((vec![doc_edit(&path, before, &doc, changes)?], notes))
 }
 
 /// Codex ignores a project's `.codex/config.toml` (mcp / plugin) unless the
@@ -475,7 +540,7 @@ enabled = true
         let mut doc: DocumentMut = src.parse().unwrap();
         let skills = vec![skill("one", "/s/one/SKILL.md"), skill("two", "/s/two/SKILL.md")];
         let plugins = vec![Plugin { id: "a@m".into(), enabled: true }, Plugin { id: "b@m".into(), enabled: true }];
-        let e = plan_global_doc(Path::new("/x"), Some(src.into()), &mut doc, &skills, &plugins, false);
+        let e = plan_global_doc(Path::new("/x"), Some(src.into()), &mut doc, &skills, &plugins, false).unwrap();
         let out = e.after;
         assert!(out.starts_with("# keep me\nmodel = \"x\""));
         assert!(out.contains("remote_plugin = false"));
@@ -487,14 +552,47 @@ enabled = true
         let rules = v["skills"]["config"].as_array().unwrap();
         assert_eq!(rules.len(), 2);
         assert!(rules.iter().all(|r| r["enabled"].as_bool() == Some(false)));
+        assert_eq!(rules[1]["name"].as_str(), Some("two"), "new global rules select by name");
         assert!(!out.contains("\n[plugins]\n"), "parent table stays implicit");
         assert_eq!(e.changes.len(), 5);
     }
 
     #[test]
+    fn inline_forms_are_edited_not_skipped() {
+        let src = "mcp_servers = { docs = { url = \"u\" } }\nskills = { config = [{ name = \"a\", enabled = true }] }\nplugins.\"p@m\".enabled = true\n";
+        let mut doc: DocumentMut = src.parse().unwrap();
+        let skills = vec![skill("a", "/s/a/SKILL.md")];
+        let plugins = vec![Plugin { id: "p@m".into(), enabled: true }];
+        let e = plan_global_doc(Path::new("/x"), None, &mut doc, &skills, &plugins, false).unwrap();
+        let v: toml::Table = e.after.parse().unwrap();
+        assert_eq!(v["mcp_servers"]["docs"]["enabled"].as_bool(), Some(false));
+        assert_eq!(v["mcp_servers"]["docs"]["url"].as_str(), Some("u"));
+        assert_eq!(v["skills"]["config"][0]["enabled"].as_bool(), Some(false));
+        assert_eq!(v["skills"]["config"][0]["name"].as_str(), Some("a"));
+        assert_eq!(v["plugins"]["p@m"]["enabled"].as_bool(), Some(false));
+        assert_eq!(e.changes.len(), 3);
+        assert!(e.after.starts_with("mcp_servers = { docs = {"), "inline layout kept");
+    }
+
+    #[test]
+    fn non_table_values_are_an_error_not_overwritten() {
+        let mut doc: DocumentMut = "plugins = \"oops\"\n".parse().unwrap();
+        assert!(set_enabled(&mut doc, "plugins", "p@m", false, &mut Vec::new()).is_err());
+        assert_eq!(doc.to_string(), "plugins = \"oops\"\n");
+    }
+
+    #[test]
+    fn guard_rejects_data_loss() {
+        let before = Some("a = 1\n[t]\nx = \"k\"\nenabled = true\n".to_string());
+        assert!(checked(Path::new("/x"), &before, "a = 1\n[t]\nx = \"k\"\nenabled = false\n").is_ok());
+        assert!(checked(Path::new("/x"), &before, "a = 1\n[t]\nenabled = false\n").is_err());
+        assert!(checked(Path::new("/x"), &before, "a = 2\n[t]\nx = \"k\"\n").is_err());
+    }
+
+    #[test]
     fn global_is_idempotent() {
         let mut doc: DocumentMut = "[mcp_servers.docs]\nurl = \"u\"\nenabled = false\n".parse().unwrap();
-        let e = plan_global_doc(Path::new("/x"), None, &mut doc, &[], &[], false);
+        let e = plan_global_doc(Path::new("/x"), None, &mut doc, &[], &[], false).unwrap();
         assert!(e.changes.is_empty());
     }
 
@@ -502,8 +600,8 @@ enabled = true
     fn project_skill_rule_is_by_name_and_updated_in_place() {
         let mut doc: DocumentMut = "[[skills.config]]\nname = \"h\"\nenabled = false\n".parse().unwrap();
         let mut changes = Vec::new();
-        set_skill_project(skills_aot(&mut doc).unwrap(), "h", true, &mut changes);
-        set_skill_project(skills_aot(&mut doc).unwrap(), "k", true, &mut changes);
+        set_skill_project(skills_rules(&mut doc).unwrap(), "h", true, &mut changes);
+        set_skill_project(skills_rules(&mut doc).unwrap(), "k", true, &mut changes);
         let v: toml::Table = doc.to_string().parse().unwrap();
         let rules = v["skills"]["config"].as_array().unwrap();
         assert_eq!(rules.len(), 2);

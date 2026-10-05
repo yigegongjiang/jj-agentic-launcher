@@ -1,0 +1,12 @@
+# Project-level Codex config (requires this dir trusted in ~/.codex/config.toml)
+
+[plugins."pdf@openai-primary-runtime"]
+enabled = true
+
+[mcp_servers.openaiDeveloperDocs]
+url = "https://developers.openai.com/mcp"
+enabled = true
+
+[[skills.config]]
+name = "handoff"
+enabled = true
