@@ -1,5 +1,8 @@
 mod codex_project;
 mod config;
+mod ext;
+mod ext_claude;
+mod ext_codex;
 mod format_agy;
 mod format_claude;
 mod format_codex;
@@ -437,6 +440,11 @@ fn run(raw: &[String]) -> Result<i32, AppError> {
 
 fn main() {
     let raw = get_raw_args();
+
+    // `ext` takes its own argv, so it is routed before scene parsing.
+    if raw.first().map(String::as_str) == Some("ext") {
+        flush_exit(ext::run(&raw[1..]));
+    }
 
     if let Some(code) = handle_meta_command(raw.first().map(String::as_str)) {
         flush_exit(code);

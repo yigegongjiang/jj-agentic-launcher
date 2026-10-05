@@ -92,6 +92,8 @@ Meta commands:
   version, --version, -v      Show version information
   update, upgrade             Download the latest release and replace this binary
   uninstall                   Remove this binary from disk
+  ext                         Switch Claude / Codex MCP, skills, plugins: globally or per project
+                              (`{NAME} ext help`)
 
 Config:
   {config_dir}/config.json    Launch arguments

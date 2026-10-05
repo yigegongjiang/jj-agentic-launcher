@@ -7,6 +7,20 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.5.0] - 2026-10-05
+
+### Added
+
+- 新增 `ext` 子命令: 一条命令全局开 / 关 Claude Code + Codex 的全部 MCP / skill / plugin (`ext global on|off`, 支持 `--dry-run`)。
+  - `ext.rs` 分发 + plan/apply 分离 (`FileEdit` = before/after/changes), `main.rs` 在 scene 解析前路由 `ext`。
+  - Codex 清单走 `codex app-server` `skills/list` + `plugin/list` (cwd=$HOME, 无 `-c`, 60s 超时), 过滤 repo / plugin skill 与 remote plugin; `toml_edit` 保格式改写。
+  - Claude MCP: `claude.args` 绝对 `--mcp-config` 文件 = 全局开集, 关闭时定义存 `mcp-catalog.json`; `@builtin` plugin / Codex `features.*` 不动。
+- 在任意项目目录用 `ext on|off` 定点开关 (fzf 多选或直接给名字), 配置写进该项目; `ext` / `ext ls` 一览全局 + 项目 + 生效状态。
+  - Claude 项目键写入已持有该键的 `settings.local.json` (Claude 以 local 为准), 否则 `settings.json`。
+  - Codex 项目 mcp 仅允许全局已定义的名字 (enabled-only 表靠与全局定义合并, 实测 codex-cli 0.160.0); 非 trusted 项目给 `[note]`。
+- 全局写入自动留首次原始备份与上一次备份。
+  - `<file>.jj-orig` 只写一次 + `<file>.jj-bak` 每次覆盖; 临时文件 + rename; 写前比对 before, 被改即中止。
+
 ## [1.4.2] - 2026-10-05
 
 ### Added
@@ -300,6 +314,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.5.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0

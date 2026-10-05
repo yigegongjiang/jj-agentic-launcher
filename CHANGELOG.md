@@ -11,6 +11,14 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.5.0] - 2026-10-05
+
+### Added
+
+- 新增 `ext` 子命令: 一条命令全局开 / 关 Claude Code + Codex 的全部 MCP / skill / plugin (`ext global on|off`, 支持 `--dry-run`)。
+- 在任意项目目录用 `ext on|off` 定点开关 (fzf 多选或直接给名字), 配置写进该项目; `ext` / `ext ls` 一览全局 + 项目 + 生效状态。
+- 全局写入自动留首次原始备份与上一次备份。
+
 ## [1.4.2] - 2026-10-05
 
 ### Added
@@ -244,6 +252,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.5.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0

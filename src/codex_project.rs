@@ -55,7 +55,7 @@ pub fn skills_override(cwd: &Path) -> Option<String> {
 /// Codex stacks project layers in, so a deeper `.codex/` wins on conflicts.
 /// The root is the nearest ancestor holding a `.git` marker (Codex's default
 /// `project_root_markers`); without one only `cwd` itself is a project layer.
-fn project_dirs(cwd: &Path) -> Vec<PathBuf> {
+pub(crate) fn project_dirs(cwd: &Path) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     for dir in cwd.ancestors() {
         dirs.push(dir.to_path_buf());
@@ -73,7 +73,7 @@ fn is_git_root(dir: &Path) -> bool {
     git.is_file() || (git.is_dir() && git.join("HEAD").exists())
 }
 
-fn codex_home() -> Option<PathBuf> {
+pub(crate) fn codex_home() -> Option<PathBuf> {
     match std::env::var_os("CODEX_HOME").filter(|v| !v.is_empty()) {
         Some(v) => Some(PathBuf::from(v)),
         None => std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".codex")),

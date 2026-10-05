@@ -23,7 +23,7 @@ use serde_json::{Map, Value};
 /// the pre command ran, so the script calls back into this binary there.
 pub const SETTINGS_SUBCOMMAND: &str = "__claude-user-skills-settings";
 
-fn claude_config_dir() -> PathBuf {
+pub(crate) fn claude_config_dir() -> PathBuf {
     if let Some(dir) = std::env::var_os("CLAUDE_CONFIG_DIR").filter(|v| !v.is_empty()) {
         return PathBuf::from(dir);
     }
@@ -56,7 +56,7 @@ fn skill_name(skill_md: &str, dir_name: &str) -> String {
 
 /// Skill names under `<root>/skills/*/SKILL.md`. `fs::read_to_string` follows
 /// symlinks, which is how `npx skills` installs them.
-fn skill_names(root: &Path) -> Vec<String> {
+pub(crate) fn skill_names(root: &Path) -> Vec<String> {
     let Ok(entries) = fs::read_dir(root.join("skills")) else {
         return Vec::new();
     };

@@ -62,6 +62,40 @@ Codex 原生读取受信任项目的 `.codex/config.toml` (根目录 -> cwd 逐�
 - 仅转发 skill 开关, 不经 Codex 信任检查 (只切换本机已有 skill); `[plugins.*]` / `[mcp_servers.*]` / `[skills.bundled]` 由 Codex 原生加载, 需项目已 trusted.
 - remote plugin (`@openai-curated-remote`) 启停由账号服务端决定, 项目 / `-c` 配置均无效.
 
+### 扩展开关 `ext` (MCP / skill / plugin)
+
+一处收口 Claude Code + Codex 的 MCP / skill / plugin: 全局一键开关 + 当前目录 (cwd) 项目定点开关.
+
+```bash
+jj-agentic-launcher ext                                   # 清单: global / project / 生效值 (= ext ls [claude|codex])
+jj-agentic-launcher ext global off                        # 全局一键全关 (claude + codex); 可加 claude|codex 限定
+jj-agentic-launcher ext global on --dry-run               # 全局一键全开, 只打印变更
+jj-agentic-launcher ext on                                # fzf 多选 (TAB) -> 对 cwd 项目打开
+jj-agentic-launcher ext on codex skill handoff qmd        # 参数直指: <claude|codex> <mcp|skill|plugin> <name>...
+jj-agentic-launcher ext off claude mcp proxyman
+```
+
+落点:
+
+<!-- prettier-ignore -->
+| | 全局 | 项目 (cwd) |
+| --- | --- | --- |
+| claude plugin | `~/.claude/settings.json` `enabledPlugins` | `.claude/settings.json` `enabledPlugins` |
+| claude skill | `config.json` `claude.user_skills_off` | `.claude/settings.json` `skillOverrides` |
+| claude mcp | `claude.args` 里的绝对 `--mcp-config` 文件 (开集) + `mcp-catalog.json` (关闭时的定义) | `.mcp.json` |
+| codex mcp | `~/.codex/config.toml` `mcp_servers.*.enabled` | `.codex/config.toml` `mcp_servers.*.enabled` |
+| codex skill | `[[skills.config]]` path 规则 | `[[skills.config]]` name 规则 (启动器转发) |
+| codex plugin | `plugins."<id>".enabled` (本地 plugin) | `.codex/config.toml` 同名键 |
+
+- 清单来源: Claude = `installed_plugins.json` / `~/.claude/skills` / MCP 定义 (catalog + `~/.claude.json` user scope + 全局文件 + 项目 `.mcp.json`); Codex = `codex app-server` `skills/list` + `plugin/list` (只取用户级 skill、本地 plugin) + 全局 `mcp_servers`.
+- 不碰: Claude `@builtin` plugin, Codex `features.remote_plugin` / `features.apps`, remote plugin (服务端决定).
+- Claude MCP 依赖 `--strict-mcp-config` (缺则 `[note]`); 项目打开时按名从 catalog -> `~/.claude.json` -> 全局文件取定义写入 `.mcp.json`, 关闭时定义收入 catalog.
+- Codex 项目 mcp 只能开关全局已定义的服务器 (项目表只写 `enabled`, 合并到全局定义上); mcp / plugin 需项目 trusted (否则 `[note]`), skill 由启动器转发不受限.
+- Claude 项目开关写进已持有该键的文件: `settings.local.json` 有则改它 (Claude 以 local 为准), 否则 `settings.json`.
+- Claude MCP 定义只在某项目 `.mcp.json` 里时: 在该项目 `ext off claude mcp <name>` 一次即收入 catalog, 之后任意项目 `ext on` 原样写回.
+- 生效范围: Claude skill / MCP 开关只对启动器拉起的会话生效 (`user_skills_off` + `--strict-mcp-config`), plugin 开关全局生效; Codex 全局 mcp / plugin 改的是共享 `~/.codex/config.toml`, 裸 `codex` 与桌面 app 同样受影响; Codex 项目 skill 开关只经启动器生效, name 规则命中同名的全部 skill.
+- 全局写入前留 `<file>.jj-orig` (首次) + `<file>.jj-bak` (上一次); 临时文件 + rename 原子写; 计划后文件被改则中止.
+
 ### 默认 scene
 
 `config.json` → `scenes.default` = 一个 scene token, 语义与命令行参数完全一致: 别名 (`it`) / scene 文件名 (`it-expert`) / 引擎前缀改默认引擎 (`.it` = Codex, `,it` = agy). 改完立即生效, 无需重装.
@@ -249,7 +283,7 @@ jj-agentic-launcher uninstall   # 删除当前二进制
 
 ## 架构
 
-Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` / `agy` (PATH, 按需), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2` / `toml`.
+Rust, `cargo build --release` 编译单文件二进制 (darwin arm64/x64). GitHub Actions 于 `v*` tag 触发双架构构建 + 生成 `checksums.txt` + 创建 Release. 运行时依赖: `claude` / `codex` / `agy` (PATH, 按需), `curl` (仅 `update` 子命令). crate 依赖: `serde` / `serde_json` / `sha2` / `toml` / `toml_edit`.
 
 ## 项目结构
 
@@ -260,4 +294,4 @@ scripts/      # 辅助脚本
 Cargo.toml    # 包定义, VERSION 经 env!(CARGO_PKG_VERSION) 注入二进制
 ```
 
-子命令: `help` / `-h` / `--help`, `version` / `-v` / `--version`, `update` / `upgrade`, `uninstall`.
+子命令: `help` / `-h` / `--help`, `version` / `-v` / `--version`, `update` / `upgrade`, `uninstall`, `ext`.
