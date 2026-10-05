@@ -7,6 +7,13 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.5.2] - 2026-10-05
+
+### Changed
+
+- `ext on|off` 的 fzf 多选更醒目: 已选项显示绿色 ✓, `Ctrl-A` 一键反选当前筛选出的全部条目。
+  - `ext.rs` `pick`: `--marker=✓` + `--color=marker:green:bold` + `--bind=ctrl-a:toggle-all`; 仅用长期存在的 fzf 参数 (未知参数 -> exit 2 + 空输出); fzf exit 2 改报错, 不再误报 `nothing selected`。
+
 ## [1.5.1] - 2026-10-05
 
 ### Changed

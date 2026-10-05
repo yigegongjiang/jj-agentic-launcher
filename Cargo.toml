@@ -1,6 +1,6 @@
 [package]
 name = "jj-agentic-launcher"
-version = "1.5.1"
+version = "1.5.2"
 edition = "2021"
 description = "Launch Claude Code or Codex with shared scene prompts"
 repository = "https://github.com/yigegongjiang/jj-agentic-launcher"

@@ -70,7 +70,7 @@ Codex 原生读取受信任项目的 `.codex/config.toml` (根目录 -> cwd 逐�
 jj-agentic-launcher ext                                   # 清单: global / project / 生效值 (= ext ls [claude|codex])
 jj-agentic-launcher ext global off                        # 全局一键全关 (claude + codex); 可加 claude|codex 限定
 jj-agentic-launcher ext global on --dry-run               # 全局一键全开, 只打印变更
-jj-agentic-launcher ext on                                # fzf 多选 (TAB) -> 对 cwd 项目打开
+jj-agentic-launcher ext on                                # fzf 多选 (TAB / Shift-TAB 勾选 ✓, Ctrl-A 反选当前列表) -> 对 cwd 项目打开
 jj-agentic-launcher ext on codex skill handoff qmd        # 参数直指: <claude|codex> <mcp|skill|plugin> <name>...
 jj-agentic-launcher ext off claude mcp proxyman
 ```

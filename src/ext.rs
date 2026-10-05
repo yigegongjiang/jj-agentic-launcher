@@ -88,7 +88,7 @@ pub struct Inventory {
 const USAGE: &str = "Usage:
   {NAME} ext [ls] [claude|codex]                      List MCP / skill / plugin state (global + this project)
   {NAME} ext global on|off [claude|codex] [--dry-run] Switch everything in the user config at once
-  {NAME} ext on|off [--dry-run]                       Pick items with fzf, switch them for this project (cwd)
+  {NAME} ext on|off [--dry-run]                       Multi-pick with fzf (TAB), switch them for this project (cwd)
   {NAME} ext on|off <claude|codex> <mcp|skill|plugin> <name>... [--dry-run]
 
 Project switches are written to the cwd: .claude/settings.local.json + .mcp.json (Claude),
@@ -243,7 +243,20 @@ fn pick(cwd: &Path, on: bool) -> Result<Vec<(Eng, Kind, String)>, String> {
 
     let prompt = format!("project {} > ", if on { "ON" } else { "OFF" });
     let mut child = Command::new("fzf")
-        .args(["-m", "--no-sort", "--prompt", &prompt, "--header", "TAB = select, ENTER = apply"])
+        // Default fzf marks a pick with a thin bar next to the gutter, easy to miss;
+        // a coloured check + Ctrl-A make multi-select obvious. Long-standing flags
+        // only: an unknown one makes fzf exit 2 with empty output.
+        .args([
+            "-m",
+            "--no-sort",
+            "--marker=✓",
+            "--color=marker:green:bold",
+            "--bind=ctrl-a:toggle-all",
+            "--prompt",
+            &prompt,
+            "--header",
+            "TAB / Shift-TAB = toggle, Ctrl-A = toggle all shown, ENTER = apply",
+        ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -252,6 +265,9 @@ fn pick(cwd: &Path, on: bool) -> Result<Vec<(Eng, Kind, String)>, String> {
         let _ = stdin.write_all(input.as_bytes());
     }
     let out = child.wait_with_output().map_err(|e| format!("fzf: {e}"))?;
+    if out.status.code() == Some(2) {
+        return Err("fzf failed (exit 2)".into());
+    }
     let text = String::from_utf8_lossy(&out.stdout);
     let mut picked = Vec::new();
     for line in text.lines() {
