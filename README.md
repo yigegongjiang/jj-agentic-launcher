@@ -227,7 +227,18 @@ scenes/*.md    # 自定义 scene 文件 (首次运行内置 scene 落盘)
 
 - 新增 scene: `scenes/foo.md` + `config.json` → `scenes.aliases` 加 `"f": "foo"` → `jj-agentic-launcher foo` / `f` / `.f` / `,f` 均可用.
 - config.json 里整段缺失的引擎 (如老版本写的文件没有 `agy` 段) 用内置默认参数; 写成 `"agy": {}` 才是「不带参数」.
+- `claude.user_skills_off: true` (默认关): 每次启动 Claude 时隐藏全部用户级 skill (`~/.claude/skills/*`), 由项目按需打开, 见 [用户级 skill 默认关闭](#用户级-skill-默认关闭).
 - 引擎自身的模型 / 推理档位不写死在本项目: 需要就往对应引擎段的 `args` 里加 (如 agy 的 `--model` / `--effort`), 或命令行 `-- --model ...` 透传.
+
+### 用户级 skill 默认关闭
+
+Claude Code 无「用户级 skill 全关 + 项目按需开」开关, launcher 代为合成: 启动时注入 `--settings '{"skillOverrides":{"<name>":"off",...}}'`.
+
+- off 列表 = `~/.claude/skills/*` 实时枚举 (名取 SKILL.md frontmatter `name`) − cwd `.claude/settings{,.local}.json` 的 `skillOverrides` 已列出的名字 − cwd `.claude/skills/*` 同名 skill.
+- 项目打开某个用户 skill: 该项目 `.claude/settings.json` → `{"skillOverrides": {"archify": "on"}}`.
+- 只看 cwd (Claude 自身也只读 cwd 的项目 settings, 不上溯父目录 / git root); `--pre` 下预览显示占位 `<claude-user-skills-off>`, 实际值在 pre 命令执行后的 cwd 计算.
+- 仅 Claude 引擎; config / `--` 透传里已有 `--settings` → `[warn]` + 跳过.
+- 插件 / MCP 不归此项: 插件 = 用户 settings `enabledPlugins` 置 `false` + 项目 `.claude/settings.json` 置 `true`; MCP = `--strict-mcp-config` + `--mcp-config <全局> .mcp.json`.
 
 ## 自更新 / 卸载
 

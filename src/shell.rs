@@ -14,6 +14,10 @@ const MCP_FLAG: &str = "--mcp-config";
 /// script into `-c skills.config=[...]` once `pre_cmd` has settled the cwd.
 pub const CODEX_SKILLS_DEFERRED: &str = "<codex-project-skills>";
 
+/// Argv placeholder for `claude.user_skills_off` under `--pre`; expanded by the
+/// script into `--settings {...}` once `pre_cmd` has settled the cwd.
+pub const CLAUDE_SKILLS_DEFERRED: &str = "<claude-user-skills-off>";
+
 /// POSIX single-quote for safe interpolation into a generated script. Inside
 /// single quotes every byte is literal except `'` itself, so closing/escaping/
 /// reopening around each `'` is the entire rule — newlines, `$`, backticks and
@@ -121,6 +125,12 @@ fn emit_argv(script: &mut String, args: &[String]) {
             i += 1;
             continue;
         }
+        if args[i] == CLAUDE_SKILLS_DEFERRED {
+            flush_plain(script, &mut plain);
+            emit_claude_skills(script);
+            i += 1;
+            continue;
+        }
         if args[i] != MCP_FLAG {
             plain.push(args[i].clone());
             i += 1;
@@ -161,15 +171,28 @@ fn emit_argv(script: &mut String, args: &[String]) {
 /// Ask this binary for the project's skill rules in the post-`pre_cmd` cwd; an
 /// empty answer adds nothing.
 fn emit_codex_skills(script: &mut String) {
-    let exe = std::env::current_exe()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|_| crate::meta::NAME.to_string());
     script.push_str(&format!(
         "__jj_sk=$({} {})\n",
-        quote(&exe),
+        quote(&self_exe()),
         quote(crate::codex_project::SUBCOMMAND)
     ));
     script.push_str("[ -z \"$__jj_sk\" ] || set -- \"$@\" '-c' \"$__jj_sk\"\n");
+}
+
+/// Same callback for Claude's `--settings` (user skills the project did not opt into).
+fn emit_claude_skills(script: &mut String) {
+    script.push_str(&format!(
+        "__jj_cs=$({} {})\n",
+        quote(&self_exe()),
+        quote(crate::skills::SETTINGS_SUBCOMMAND)
+    ));
+    script.push_str("[ -z \"$__jj_cs\" ] || set -- \"$@\" '--settings' \"$__jj_cs\"\n");
+}
+
+fn self_exe() -> String {
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| crate::meta::NAME.to_string())
 }
 
 /// Emit one `--mcp-config` group with its file sources gated on existence in the
@@ -311,6 +334,20 @@ mod tests {
         assert!(script.contains("'__codex-project-skills')\n"));
         assert!(script.contains("[ -z \"$__jj_sk\" ] || set -- \"$@\" '-c' \"$__jj_sk\"\nset -- \"$@\" '-c' 'x=1'\n"));
         assert!(!script.contains(CODEX_SKILLS_DEFERRED));
+    }
+
+    #[test]
+    fn claude_skills_placeholder_resolves_in_the_shell() {
+        let script = build_script(
+            "j api",
+            "claude",
+            &s(&["-p", CLAUDE_SKILLS_DEFERRED, "--append-system-prompt", "S"]),
+            true,
+        );
+        assert!(script.contains("set -- \"$@\" '-p'\n__jj_cs=$("));
+        assert!(script.contains("'__claude-user-skills-settings')\n"));
+        assert!(script.contains("[ -z \"$__jj_cs\" ] || set -- \"$@\" '--settings' \"$__jj_cs\"\nset -- \"$@\" '--append-system-prompt' 'S'\n"));
+        assert!(!script.contains(CLAUDE_SKILLS_DEFERRED));
     }
 
     #[test]

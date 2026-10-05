@@ -7,6 +7,15 @@
 
 # Changelog (developer, follow [CHANGELOG.md](./CHANGELOG.md))
 
+## [1.4.2] - 2026-10-05
+
+### Added
+
+- 新配置 `claude.user_skills_off`: 开启后 Claude 启动时隐藏全部用户级 skill, 项目在自己的 `.claude/settings.json` 用 `skillOverrides` 按需打开; 新装的用户 skill 自动纳入; `--pre` 切换目录后同样生效。
+  - `skills.rs`: 枚举 `$CLAUDE_CONFIG_DIR|~/.claude/skills/*/SKILL.md` (frontmatter `name` 优先), 减去 cwd `.claude/settings{,.local}.json` `skillOverrides` 键 + cwd `.claude/skills` 同名, 生成 `--settings` JSON, 经 `build_final_args` 的 project_args 槽注入。
+  - 实测 claude 2.1.289: `--settings` 优先级高于 project/local (故必须做减法), 项目 settings 只读 cwd, 插件 skill 不受 `skillOverrides` 影响。
+  - `--pre`: 占位符 `<claude-user-skills-off>` 由 `shell::emit_claude_skills` 回调隐藏子命令 `__claude-user-skills-settings` 现算; config / 透传已含 `--settings` 时 `[warn]` 跳过。
+
 ## [1.4.1] - 2026-10-05
 
 ### Added
@@ -291,6 +300,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1

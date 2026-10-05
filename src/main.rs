@@ -13,6 +13,7 @@ mod run;
 mod scenes;
 mod server;
 mod shell;
+mod skills;
 mod update;
 
 use std::io::Write;
@@ -64,6 +65,12 @@ fn handle_meta_command(arg: Option<&str>) -> Option<i32> {
                 .and_then(|cwd| codex_project::skills_override(&cwd));
             if let Some(v) = over {
                 println!("{v}");
+            }
+            Some(0)
+        }
+        Some(skills::SETTINGS_SUBCOMMAND) => {
+            if let Some(json) = skills::settings_json() {
+                println!("{json}");
             }
             Some(0)
         }

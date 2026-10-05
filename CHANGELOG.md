@@ -11,6 +11,12 @@
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [SemVer](https://semver.org/).
 
+## [1.4.2] - 2026-10-05
+
+### Added
+
+- 新配置 `claude.user_skills_off`: 开启后 Claude 启动时隐藏全部用户级 skill, 项目在自己的 `.claude/settings.json` 用 `skillOverrides` 按需打开; 新装的用户 skill 自动纳入; `--pre` 切换目录后同样生效。
+
 ## [1.4.1] - 2026-10-05
 
 ### Added
@@ -238,6 +244,7 @@
 - 首次运行初始化 `~/.config/cli-prompt-launcher/`。
 - Claude / Codex 流事件格式化输出。
 
+[1.4.2]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/yigegongjiang/jj-agentic-launcher/compare/v1.3.0...v1.3.1

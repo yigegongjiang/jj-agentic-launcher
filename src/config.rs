@@ -27,6 +27,10 @@ pub struct EngineConfig {
     pub print: Option<Vec<String>>,
     #[serde(default)]
     pub stream: Option<Vec<String>>,
+    /// Claude only: hide `~/.claude/skills/*` unless the project opts in (see
+    /// `skills.rs`). Absent = off, so existing configs keep today's behavior.
+    #[serde(default)]
+    pub user_skills_off: Option<bool>,
 }
 
 #[derive(Deserialize, Default)]
@@ -182,6 +186,14 @@ pub fn get_configured_args(engine: Engine, mode: Mode) -> Vec<String> {
     }
     out.extend(mode_args);
     out
+}
+
+pub fn claude_user_skills_off() -> bool {
+    config()
+        .claude
+        .as_ref()
+        .and_then(|c| c.user_skills_off)
+        .unwrap_or(false)
 }
 
 /// Raw `scenes.default` value — a scene *token* (alias / scene file name /

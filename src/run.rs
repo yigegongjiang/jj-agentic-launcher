@@ -4,7 +4,7 @@ use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
-use crate::config::get_configured_args;
+use crate::config::{claude_user_skills_off, get_configured_args};
 use crate::format_agy::AgyStreamFormatter;
 use crate::format_claude::ClaudeStreamFormatter;
 use crate::format_codex::CodexStreamFormatter;
@@ -84,7 +84,11 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
         .prompt_override
         .clone()
         .or_else(|| inv.user_text.clone());
-    let project_args = codex_project_args(inv);
+    let project_args = match inv.engine {
+        Engine::Codex => codex_project_args(inv),
+        Engine::Claude => claude_skills_args(inv, &config_args),
+        Engine::Agy => Vec::new(),
+    };
     let args = build_final_args(
         inv,
         config_args,
@@ -110,9 +114,6 @@ fn build_launch_plan(inv: &Invocation, opts: &RunOptions) -> Result<LaunchPlan, 
 /// `--pre` the cwd is unknown until the pre command ran, so a placeholder is
 /// left for `shell::build_script` to resolve at exec time.
 fn codex_project_args(inv: &Invocation) -> Vec<String> {
-    if !matches!(inv.engine, Engine::Codex) {
-        return Vec::new();
-    }
     if inv.pre_cmd.is_some() {
         return vec![crate::shell::CODEX_SKILLS_DEFERRED.to_string()];
     }
@@ -120,6 +121,29 @@ fn codex_project_args(inv: &Invocation) -> Vec<String> {
         .ok()
         .and_then(|cwd| crate::codex_project::skills_override(&cwd))
         .map(|v| vec!["-c".to_string(), v])
+        .unwrap_or_default()
+}
+
+/// `claude.user_skills_off`: `--settings` hiding user skills the project did not
+/// opt into (see `skills`). Deferred under `--pre` like the Codex rules. A
+/// user-supplied `--settings` wins; the feature steps aside, loudly.
+fn claude_skills_args(inv: &Invocation, config_args: &[String]) -> Vec<String> {
+    if !claude_user_skills_off() {
+        return Vec::new();
+    }
+    let user_settings = config_args
+        .iter()
+        .chain(inv.passthrough_args.as_deref().unwrap_or_default())
+        .any(|a| a == "--settings" || a.starts_with("--settings="));
+    if user_settings {
+        eprintln!("[warn] claude.user_skills_off ignored: --settings already given.");
+        return Vec::new();
+    }
+    if inv.pre_cmd.is_some() {
+        return vec![crate::shell::CLAUDE_SKILLS_DEFERRED.to_string()];
+    }
+    crate::skills::settings_json()
+        .map(|json| vec!["--settings".to_string(), json])
         .unwrap_or_default()
 }
 
@@ -343,6 +367,16 @@ fn run_command(plan: LaunchPlan, opts: RunOptions) -> Result<RunOutcome, String>
             eprintln!(
                 "[note] {} = project .codex/config.toml [[skills.config]], read after `--pre` in the resulting cwd.",
                 crate::shell::CODEX_SKILLS_DEFERRED
+            );
+        }
+        if plan
+            .args
+            .iter()
+            .any(|a| a == crate::shell::CLAUDE_SKILLS_DEFERRED)
+        {
+            eprintln!(
+                "[note] {} = --settings hiding user skills, computed after `--pre` in the resulting cwd.",
+                crate::shell::CLAUDE_SKILLS_DEFERRED
             );
         }
     }
